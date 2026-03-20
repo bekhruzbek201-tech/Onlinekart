@@ -1,26 +1,125 @@
 @import "tailwindcss";
 
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d0d0d;
+  touch-action: none;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Soviet Constructivist Design System */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --soviet-red: #c41e1e;
+  --soviet-gold: #d4a017;
+  --soviet-dark: #0d0d0d;
+  --soviet-concrete: #4a4a4a;
+  --soviet-cream: #e8dcc8;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* CRT Scanlines */
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  pointer-events: none;
+  z-index: 50;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Animations */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes countPop {
+  0% { transform: scale(0.3); opacity: 0; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+@keyframes boostPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(212, 160, 23, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(212, 160, 23, 0.7); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out;
+}
+
+.animate-countPop {
+  animation: countPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.animate-shakeX {
+  animation: shakeX 0.15s ease-in-out 3;
+}
+
+.boost-glow {
+  animation: boostPulse 0.4s ease-in-out infinite;
+}
+
+/* Speed lines overlay */
+.speed-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(255,255,255,0.02) 100%);
+}
+
+.speed-lines.active {
+  background: radial-gradient(ellipse at center, transparent 20%, rgba(196,30,30,0.04) 60%, rgba(0,0,0,0.15) 100%);
+}
+
+/* Propaganda stripe */
+.red-stripe {
+  background: linear-gradient(90deg, transparent 0%, var(--soviet-red) 10%, var(--soviet-red) 90%, transparent 100%);
+}
+
+/* Smooth number transitions */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Loading screen */
+.loading-bar {
+  background: linear-gradient(90deg, var(--soviet-red) 0%, var(--soviet-gold) 100%);
 }
