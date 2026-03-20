@@ -110,22 +110,22 @@ function Building({ position, size, color, windows = true }: { position: [number
         <boxGeometry args={size} />
         <meshStandardMaterial color={color} roughness={0.95} />
       </mesh>
-      {/* Window grid */}
-      {windows && Array.from({ length: Math.floor(size[1] / 4) }, (_, row) =>
-        Array.from({ length: Math.floor(size[0] / 4) }, (_, col) => (
+      {/* Optimized Window grid: Only show few windows to save performance */}
+      {windows && Array.from({ length: Math.floor(size[1] / 12) }, (_, row) =>
+        Array.from({ length: Math.floor(size[0] / 8) }, (_, col) => (
           <mesh
             key={`${row}-${col}`}
             position={[
-              -size[0] / 2 + 2 + col * 4,
-              -size[1] / 2 + 3 + row * 4,
-              size[2] / 2 + 0.05,
+              -size[0] / 2 + 3 + col * 8,
+              -size[1] / 2 + 6 + row * 12,
+              size[2] / 2 + 0.1,
             ]}
           >
-            <planeGeometry args={[1.2, 1.8]} />
+            <planeGeometry args={[2.5, 4]} />
             <meshStandardMaterial
-              color={Math.random() > 0.6 ? "#ffeeaa" : "#222"}
-              emissive={Math.random() > 0.6 ? "#ffeeaa" : "#000"}
-              emissiveIntensity={0.3}
+              color={Math.random() > 0.7 ? "#ffeeaa" : "#1a1a1a"}
+              emissive={Math.random() > 0.7 ? "#ffeeaa" : "#000"}
+              emissiveIntensity={0.4}
             />
           </mesh>
         ))

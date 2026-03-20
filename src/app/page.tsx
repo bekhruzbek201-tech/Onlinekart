@@ -131,16 +131,41 @@ export default function Home() {
       import("@/lib/supabase").then(async ({ supabase }) => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
+          const userId = session.user.id;
+          const timeMs = Math.floor(raceTime * 1000);
+          
           try {
+            // 1. Insert the race result
             await supabase.from("race_results").insert({
-              player_id: session.user.id,
-              race_time_ms: Math.floor(raceTime * 1000),
+              player_id: userId,
+              race_time_ms: timeMs,
               laps: totalLaps,
-              track_name: "soviet_circuit"
+              track_name: "soviet_circuit",
+              total_players: isMultiplayer ? (opponents.length + 1) : 1,
+              position: isMultiplayer ? (finishResults ? finishResults.findIndex(r => r.id === myId) + 1 : null) : null
             });
-            console.log("[СОЮЗ] Race result saved to database");
+
+            // 2. Fetch current best time to see if we should update it
+            const { data: profile } = await supabase.from("players").select("best_time_ms, total_races, total_wins").eq("id", userId).single();
+            
+            if (profile) {
+              const updates: any = {
+                total_races: (profile.total_races || 0) + 1,
+                updated_at: new Date().toISOString()
+              };
+
+              if (!profile.best_time_ms || timeMs < profile.best_time_ms) {
+                updates.best_time_ms = timeMs;
+              }
+
+              // If multi-player and we were 1st place (this logic is simplified here as we don't have final ranking on every client yet)
+              // But for now let's just increment races.
+              await supabase.from("players").update(updates).eq("id", userId);
+            }
+
+            console.log("[СОЮЗ] Race stats synchronized with Central Command");
           } catch (e) {
-            console.error("Failed to save race result:", e);
+            console.error("Failed to sync race data:", e);
           }
         }
       });
@@ -196,7 +221,7 @@ export default function Home() {
             depth: true,
           }}
           frameloop="always"
-          dpr={[1, 1.5]}
+          dpr={1}
         >
           {/* Soviet overcast sky gradient */}
           <color attach="background" args={["#1a1b1e"]} />
@@ -211,7 +236,7 @@ export default function Home() {
             position={[60, 90, 40]}
             intensity={1.6}
             color="#ffeedd"
-            shadow-mapSize={[2048, 2048]}
+            shadow-mapSize={[1024, 1024]}
             shadow-camera-left={-120}
             shadow-camera-right={120}
             shadow-camera-top={120}

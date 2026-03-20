@@ -88,7 +88,8 @@ export function KartShowcase({ color = "#8b1a1a" }: { color?: string }) {
     <div className="absolute inset-0 z-0 pointer-events-none opacity-40 mix-blend-screen overflow-hidden">
       <Canvas
         camera={{ position: [5, 3, 5], fov: 45 }}
-        gl={{ antialias: true, alpha: true }}
+        gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
+        dpr={1}
       >
         <ambientLight intensity={0.5} color="#ffffff" />
         <directionalLight position={[10, 10, 5]} intensity={2} color="#ffddaa" />

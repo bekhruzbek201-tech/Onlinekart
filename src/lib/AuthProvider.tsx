@@ -42,10 +42,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      if (session?.user) {
+        // Sync profile to 'players' table
+        const { user } = session;
+        await supabase.from("players").upsert({
+          id: user.id,
+          display_name: user.user_metadata.full_name || user.user_metadata.name || user.email?.split("@")[0] || "Товарищ",
+          avatar_url: user.user_metadata.avatar_url,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      }
     });
 
     return () => subscription.unsubscribe();

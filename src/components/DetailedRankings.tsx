@@ -63,20 +63,28 @@ export function DetailedRankings() {
         query = query.gt("total_wins", 0);
       }
 
-      const { data, error } = await query;
+      try {
+        const { data, error } = await query;
 
-      if (!error && data) {
-        setPlayers(data.map((d: any) => ({
-          id: d.id,
-          display_name: d.display_name,
-          avatar_url: d.avatar_url,
-          total_races: d.total_races || 0,
-          total_wins: d.total_wins || 0,
-          best_time_ms: d.best_time_ms,
-          rank_title: getRankTitle(d.best_time_ms)
-        })));
+        if (error) {
+          console.error("Supabase error fetching rankings:", error);
+          setPlayers([]);
+        } else if (data) {
+          setPlayers(data.map((d: any) => ({
+            id: d.id,
+            display_name: d.display_name || "Unknown",
+            avatar_url: d.avatar_url,
+            total_races: d.total_races || 0,
+            total_wins: d.total_wins || 0,
+            best_time_ms: d.best_time_ms,
+            rank_title: getRankTitle(d.best_time_ms)
+          })));
+        }
+      } catch (err) {
+        console.error("Network or fatal error fetching rankings", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     fetchStats();
   }, [activeTab]);

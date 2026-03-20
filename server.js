@@ -37,11 +37,12 @@ app.prepare().then(() => {
   io.on("connection", (socket) => {
     console.log(`[СОЮЗ] Player connected: ${socket.id}`);
 
-    socket.on("create-room", (playerName) => {
+    socket.on("create-room", ({ playerName, avatarUrl }) => {
       const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = {
         id: socket.id,
         name: playerName || "Товарищ",
+        avatarUrl,
         position: SPAWN_POSITIONS[0],
         rotation: [0, 0, 0, 1],
         speed: 0,
@@ -64,7 +65,7 @@ app.prepare().then(() => {
       console.log(`[СОЮЗ] Room ${roomCode} created by ${playerName}`);
     });
 
-    socket.on("join-room", ({ roomCode, playerName }) => {
+    socket.on("join-room", ({ roomCode, playerName, avatarUrl }) => {
       const code = roomCode.toUpperCase();
       const room = rooms.get(code);
 
@@ -85,6 +86,7 @@ app.prepare().then(() => {
       const player = {
         id: socket.id,
         name: playerName || "Товарищ",
+        avatarUrl,
         position: SPAWN_POSITIONS[idx] || SPAWN_POSITIONS[0],
         rotation: [0, 0, 0, 1],
         speed: 0,
