@@ -2,7 +2,15 @@
 
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { Suspense, useState, useCallback, useEffect, useRef } from "react";
+import {
+  Suspense,
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { KeyboardControls } from "@react-three/drei";
 import { Kart } from "@/components/Kart";
 import { Track } from "@/components/Track";
@@ -11,6 +19,7 @@ import { Lobby } from "@/components/Lobby";
 import { Countdown } from "@/components/Countdown";
 import { Minimap } from "@/components/Minimap";
 import { OpponentKart } from "@/components/OpponentKart";
+import { TouchControls } from "@/components/TouchControls";
 import { getSocket } from "@/lib/socket";
 
 type GameScreen = "lobby" | "game";
@@ -26,6 +35,13 @@ interface PlayerData {
   lap: number;
 }
 
+interface RaceResult {
+  id: string;
+  name: string;
+  color: string;
+  finishTime: number;
+}
+
 export default function Home() {
   const [screen, setScreen] = useState<GameScreen>("lobby");
   const [raceState, setRaceState] = useState<RaceState>("waiting");
@@ -36,30 +52,94 @@ export default function Home() {
   const [lap, setLap] = useState(0);
   const [raceTime, setRaceTime] = useState(0);
   const [kartPos, setKartPos] = useState({ x: 50, z: 44 });
+  const [kartRotation, setKartRotation] = useState(0);
   const [opponents, setOpponents] = useState<PlayerData[]>([]);
   const [roomCode, setRoomCode] = useState<string | undefined>();
   const [myId, setMyId] = useState("");
   const [kartColor, setKartColor] = useState("#8b1a1a");
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
-  const [finishResults, setFinishResults] = useState<any[] | null>(null);
+  const [finishResults, setFinishResults] = useState<RaceResult[] | null>(null);
+  const [isLowPowerDevice, setIsLowPowerDevice] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const totalLaps = 3;
 
   const raceStartTime = useRef(0);
   const raceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hudUpdateTimerRef = useRef(0);
+  const minimapUpdateTimerRef = useRef(0);
+  const raceTimeRef = useRef(0);
+  const isMultiplayerRef = useRef(false);
+  const opponentsCountRef = useRef(0);
+  const finishResultsRef = useRef<RaceResult[] | null>(null);
+  const myIdRef = useRef("");
+  const hudSnapshotRef = useRef({
+    speed: 0,
+    maxSpeed: 42,
+    isBoosting: false,
+    isDrifting: false,
+  });
+  const deferredOpponents = useDeferredValue(opponents);
+
+  useEffect(() => {
+    raceTimeRef.current = raceTime;
+  }, [raceTime]);
+
+  useEffect(() => {
+    isMultiplayerRef.current = isMultiplayer;
+  }, [isMultiplayer]);
+
+  useEffect(() => {
+    opponentsCountRef.current = opponents.length;
+  }, [opponents.length]);
+
+  useEffect(() => {
+    finishResultsRef.current = finishResults;
+  }, [finishResults]);
+
+  useEffect(() => {
+    myIdRef.current = myId;
+  }, [myId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const nav = navigator as Navigator & { deviceMemory?: number };
+    const memory = nav.deviceMemory ?? 8;
+    const cores = nav.hardwareConcurrency ?? 8;
+    const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    setIsTouchDevice(coarsePointer);
+    setIsLowPowerDevice(reducedMotion || memory <= 4 || cores <= 4);
+  }, []);
 
   const handleSinglePlayer = useCallback(() => {
     setIsMultiplayer(false);
+    setRoomCode(undefined);
+    setMyId("");
+    setKartColor("#8b1a1a");
+    setLap(0);
+    setRaceTime(0);
+    setFinishResults(null);
+    setOpponents([]);
+    setSpeed(0);
+    setMaxSpeed(42);
     setScreen("game");
     setShowCountdown(true);
     setRaceState("countdown");
   }, []);
 
-  const handleEnterGame = useCallback((data: any) => {
+  const handleEnterGame = useCallback((data: { roomCode: string; playerId: string; color: string }) => {
     setIsMultiplayer(true);
     setRoomCode(data.roomCode);
     setMyId(data.playerId);
     setKartColor(data.color);
+    setLap(0);
+    setRaceTime(0);
+    setFinishResults(null);
+    setSpeed(0);
+    setMaxSpeed(42);
     setScreen("game");
     setShowCountdown(true);
     setRaceState("countdown");
@@ -79,10 +159,12 @@ export default function Home() {
     });
 
     socket.on("players-state", (players: PlayerData[]) => {
-      setOpponents(players.filter((p) => p.id !== myId));
+      startTransition(() => {
+        setOpponents(players.filter((p) => p.id !== myId));
+      });
     });
 
-    socket.on("race-results", (results: any[]) => {
+    socket.on("race-results", (results: RaceResult[]) => {
       setRaceState("finished");
       setFinishResults(results);
       if (raceTimerRef.current) clearInterval(raceTimerRef.current);
@@ -102,7 +184,7 @@ export default function Home() {
       raceStartTime.current = Date.now();
       raceTimerRef.current = setInterval(() => {
         setRaceTime((Date.now() - raceStartTime.current) / 1000);
-      }, 50);
+      }, 80);
     }
     return () => {
       if (raceTimerRef.current) clearInterval(raceTimerRef.current);
@@ -111,14 +193,37 @@ export default function Home() {
 
   const handleCountdownComplete = useCallback(() => {
     setShowCountdown(false);
-    setRaceState("racing");
-  }, []);
+    if (!isMultiplayer) {
+      setRaceState("racing");
+    }
+  }, [isMultiplayer]);
 
   const handleSpeedChange = useCallback((s: number, ms: number, boosting: boolean, drifting: boolean) => {
-    setSpeed(s);
-    setMaxSpeed(ms);
-    setIsBoosting(boosting);
-    setIsDrifting(drifting);
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const previous = hudSnapshotRef.current;
+    const shouldSkipUpdate =
+      now - hudUpdateTimerRef.current < 70 &&
+      Math.abs(previous.speed - s) < 1.2 &&
+      Math.abs(previous.maxSpeed - ms) < 0.5 &&
+      previous.isBoosting === boosting &&
+      previous.isDrifting === drifting;
+
+    if (shouldSkipUpdate) return;
+
+    hudUpdateTimerRef.current = now;
+    hudSnapshotRef.current = {
+      speed: s,
+      maxSpeed: ms,
+      isBoosting: boosting,
+      isDrifting: drifting,
+    };
+
+    startTransition(() => {
+      setSpeed(s);
+      setMaxSpeed(ms);
+      setIsBoosting(boosting);
+      setIsDrifting(drifting);
+    });
   }, []);
 
   const handleLapChange = useCallback(async (newLap: number) => {
@@ -132,7 +237,7 @@ export default function Home() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           const userId = session.user.id;
-          const timeMs = Math.floor(raceTime * 1000);
+          const timeMs = Math.floor(raceTimeRef.current * 1000);
           
           try {
             // 1. Insert the race result
@@ -141,15 +246,19 @@ export default function Home() {
               race_time_ms: timeMs,
               laps: totalLaps,
               track_name: "soviet_circuit",
-              total_players: isMultiplayer ? (opponents.length + 1) : 1,
-              position: isMultiplayer ? (finishResults ? finishResults.findIndex(r => r.id === myId) + 1 : null) : null
+              total_players: isMultiplayerRef.current ? opponentsCountRef.current + 1 : 1,
+              position: isMultiplayerRef.current
+                ? finishResultsRef.current
+                  ? finishResultsRef.current.findIndex((r) => r.id === myIdRef.current) + 1
+                  : null
+                : null
             });
 
             // 2. Fetch current best time to see if we should update it
             const { data: profile } = await supabase.from("players").select("best_time_ms, total_races, total_wins").eq("id", userId).single();
             
             if (profile) {
-              const updates: any = {
+              const updates: { total_races: number; updated_at: string; best_time_ms?: number } = {
                 total_races: (profile.total_races || 0) + 1,
                 updated_at: new Date().toISOString()
               };
@@ -158,8 +267,6 @@ export default function Home() {
                 updates.best_time_ms = timeMs;
               }
 
-              // If multi-player and we were 1st place (this logic is simplified here as we don't have final ranking on every client yet)
-              // But for now let's just increment races.
               await supabase.from("players").update(updates).eq("id", userId);
             }
 
@@ -170,15 +277,24 @@ export default function Home() {
         }
       });
 
-      if (isMultiplayer) {
+      if (isMultiplayerRef.current) {
         const socket = getSocket();
-        socket.emit("player-finished", { time: raceTime });
+        socket.emit("player-finished", { time: raceTimeRef.current });
       }
     }
-  }, [isMultiplayer, raceTime, totalLaps]);
+  }, [totalLaps]);
 
   const handlePositionUpdate = useCallback((position: number[], rotation: number[], spd: number, currentLap: number) => {
-    setKartPos({ x: position[0], z: position[2] });
+    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+    if (now - minimapUpdateTimerRef.current > 100) {
+      minimapUpdateTimerRef.current = now;
+      const [qx, qy, qz, qw] = rotation;
+      const yaw = Math.atan2(2 * (qw * qy + qz * qx), 1 - 2 * (qy * qy + qz * qz));
+      startTransition(() => {
+        setKartPos({ x: position[0], z: position[2] });
+        setKartRotation(yaw);
+      });
+    }
     if (isMultiplayer) {
       const socket = getSocket();
       socket.emit("player-update", { position, rotation, speed: spd, lap: currentLap });
@@ -186,15 +302,35 @@ export default function Home() {
   }, [isMultiplayer]);
 
   const handleBackToLobby = useCallback(() => {
+    if (isMultiplayer) {
+      const socket = getSocket();
+      socket.emit("leave-room");
+    }
+
     setScreen("lobby");
     setRaceState("waiting");
     setLap(0);
     setRaceTime(0);
     setSpeed(0);
+    setMaxSpeed(42);
+    setIsBoosting(false);
+    setIsDrifting(false);
+    setKartRotation(0);
+    setKartPos({ x: 50, z: 44 });
     setOpponents([]);
     setFinishResults(null);
     setShowCountdown(false);
-  }, []);
+    setRoomCode(undefined);
+    setMyId("");
+    setKartColor("#8b1a1a");
+    setIsMultiplayer(false);
+    hudSnapshotRef.current = {
+      speed: 0,
+      maxSpeed: 42,
+      isBoosting: false,
+      isDrifting: false,
+    };
+  }, [isMultiplayer]);
 
   if (screen === "lobby") {
     return <Lobby onEnterGame={handleEnterGame} onSinglePlayer={handleSinglePlayer} />;
@@ -212,16 +348,17 @@ export default function Home() {
         ]}
       >
         <Canvas
-          shadows
+          shadows={!isLowPowerDevice}
           camera={{ fov: 62, near: 0.1, far: 500 }}
+          performance={{ min: isLowPowerDevice ? 0.45 : 0.7 }}
           gl={{
-            antialias: true,
-            powerPreference: "high-performance",
+            antialias: !isLowPowerDevice,
+            powerPreference: isLowPowerDevice ? "default" : "high-performance",
             stencil: false,
             depth: true,
           }}
           frameloop="always"
-          dpr={1}
+          dpr={isLowPowerDevice ? [0.75, 1] : [1, 1.4]}
         >
           {/* Soviet overcast sky gradient */}
           <color attach="background" args={["#1a1b1e"]} />
@@ -236,7 +373,7 @@ export default function Home() {
             position={[60, 90, 40]}
             intensity={1.6}
             color="#ffeedd"
-            shadow-mapSize={[1024, 1024]}
+            shadow-mapSize={isLowPowerDevice ? [512, 512] : [1024, 1024]}
             shadow-camera-left={-120}
             shadow-camera-right={120}
             shadow-camera-top={120}
@@ -247,10 +384,14 @@ export default function Home() {
           />
 
           {/* Fill light (cold) from opposite side */}
-          <directionalLight position={[-40, 30, -20]} intensity={0.4} color="#8899bb" />
+          {!isLowPowerDevice && (
+            <directionalLight position={[-40, 30, -20]} intensity={0.4} color="#8899bb" />
+          )}
 
           {/* Red atmosphere from monument */}
-          <pointLight position={[0, 28, 0]} intensity={2} color="#ff3333" distance={50} />
+          {!isLowPowerDevice && (
+            <pointLight position={[0, 28, 0]} intensity={2} color="#ff3333" distance={50} />
+          )}
 
           <Suspense fallback={null}>
             <Physics gravity={[0, -22, 0]}>
@@ -265,7 +406,7 @@ export default function Home() {
             </Physics>
 
             {/* Opponents */}
-            {opponents.map((op) => (
+            {deferredOpponents.map((op) => (
               <OpponentKart
                 key={op.id}
                 position={op.position as [number, number, number]}
@@ -276,6 +417,7 @@ export default function Home() {
             ))}
           </Suspense>
         </Canvas>
+        <TouchControls enabled={isTouchDevice} />
       </KeyboardControls>
 
       {/* 2D Overlays */}
@@ -293,8 +435,12 @@ export default function Home() {
       <Minimap
         kartX={kartPos.x}
         kartZ={kartPos.z}
-        kartRotation={0}
-        opponents={opponents.map((op) => ({ x: op.position[0], z: op.position[2], color: op.color }))}
+        kartRotation={kartRotation}
+        opponents={deferredOpponents.map((op) => ({
+          x: op.position[0],
+          z: op.position[2],
+          color: op.color,
+        }))}
       />
 
       {showCountdown && <Countdown onComplete={handleCountdownComplete} />}
@@ -321,7 +467,7 @@ export default function Home() {
               {finishResults && finishResults.length > 0 && (
                 <div className="mb-6">
                   <div className="text-[8px] text-[#666] uppercase tracking-[0.3em] mb-3 text-center">Результаты</div>
-                  {finishResults.map((r: any, i: number) => (
+                  {finishResults.map((r, i: number) => (
                     <div
                       key={r.id}
                       className="flex justify-between items-center bg-[#1a1a1a] border border-[#2a2a2a] px-4 py-2.5 mb-1"

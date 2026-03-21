@@ -1,7 +1,7 @@
 "use client";
 
 import { RigidBody } from "@react-three/rapier";
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -60,7 +60,7 @@ function BoostPad({ position, rotationY }: { position: [number, number, number];
         <planeGeometry args={[4.5, 9]} />
         <meshStandardMaterial color="#b8860b" roughness={0.4} metalness={0.4} />
       </mesh>
-      <mesh ref={glowRef as any} position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh ref={glowRef} position={[0, 0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[4.5, 9]} />
         <meshStandardMaterial color="#ffd700" transparent opacity={0.35} emissive="#ffd700" emissiveIntensity={0.6} />
       </mesh>
@@ -134,7 +134,7 @@ function Building({ position, size, color, windows = true }: { position: [number
   );
 }
 
-export function Track() {
+export const Track = memo(function Track() {
   const tw = 20; // track width
   const sl = 120; // straight length
   const wh = 3.5; // wall height
@@ -322,4 +322,4 @@ export function Track() {
       ))}
     </group>
   );
-}
+});

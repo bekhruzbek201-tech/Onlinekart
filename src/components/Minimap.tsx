@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 interface MinimapProps {
   kartX: number;
   kartZ: number;
@@ -7,7 +9,12 @@ interface MinimapProps {
   opponents?: { x: number; z: number; color: string }[];
 }
 
-export function Minimap({ kartX, kartZ, kartRotation, opponents = [] }: MinimapProps) {
+export const Minimap = memo(function Minimap({
+  kartX,
+  kartZ,
+  kartRotation,
+  opponents = [],
+}: MinimapProps) {
   const scale = 0.55;
   const offsetX = 75;
   const offsetZ = 75;
@@ -42,9 +49,15 @@ export function Minimap({ kartX, kartZ, kartRotation, opponents = [] }: MinimapP
           ))}
 
           {/* Player kart */}
-          <circle cx={toMapX(kartX)} cy={toMapY(kartZ)} r="3" fill="#ffffff" stroke="#c41e1e" strokeWidth="1" />
+          <g
+            transform={`translate(${toMapX(kartX)} ${toMapY(kartZ)}) rotate(${
+              (kartRotation * 180) / Math.PI
+            })`}
+          >
+            <polygon points="0,-4 3,3 -3,3" fill="#ffffff" stroke="#c41e1e" strokeWidth="1" />
+          </g>
         </svg>
       </div>
     </div>
   );
-}
+});

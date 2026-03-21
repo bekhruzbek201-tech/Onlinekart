@@ -1,7 +1,7 @@
 "use client";
 
 import * as THREE from "three";
-import { useRef } from "react";
+import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 
 interface OpponentKartProps {
@@ -11,7 +11,11 @@ interface OpponentKartProps {
   name: string;
 }
 
-export function OpponentKart({ position, rotation, color, name }: OpponentKartProps) {
+export const OpponentKart = memo(function OpponentKart({
+  position,
+  rotation,
+  color,
+}: OpponentKartProps) {
   const groupRef = useRef<THREE.Group>(null);
   const targetPos = useRef(new THREE.Vector3(...position));
   const targetQuat = useRef(new THREE.Quaternion(...rotation));
@@ -95,4 +99,4 @@ export function OpponentKart({ position, rotation, color, name }: OpponentKartPr
       {/* We can't render text in 3D easily without a component, so skip for now */}
     </group>
   );
-}
+});

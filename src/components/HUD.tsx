@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 interface HUDProps {
   speed: number;
   maxSpeed: number;
@@ -18,10 +20,18 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${ms.toString().padStart(2, "0")}`;
 }
 
-export function HUD({ speed, maxSpeed, lap, totalLaps, raceTime, isBoosting, isDrifting, roomCode }: HUDProps) {
+export const HUD = memo(function HUD({
+  speed,
+  maxSpeed,
+  lap,
+  totalLaps,
+  raceTime,
+  isBoosting,
+  isDrifting,
+  roomCode,
+}: HUDProps) {
   const speedKmh = Math.round((speed / 42) * 220);
   const speedPercent = Math.min((speed / maxSpeed) * 100, 100);
-  const rpmNeedle = Math.min(speedPercent * 2.7, 270); // 0-270 degrees for gauge
 
   return (
     <>
@@ -130,4 +140,4 @@ export function HUD({ speed, maxSpeed, lap, totalLaps, raceTime, isBoosting, isD
       </div>
     </>
   );
-}
+});

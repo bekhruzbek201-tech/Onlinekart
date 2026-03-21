@@ -24,7 +24,7 @@ export function Leaderboard() {
         .limit(10);
 
       if (!error && data) {
-        setEntries(data.map((d: any) => ({
+        setEntries((data as { id: string; display_name: string; best_time_ms: number }[]).map((d) => ({
           player_id: d.id,
           display_name: d.display_name,
           best_time_ms: d.best_time_ms,

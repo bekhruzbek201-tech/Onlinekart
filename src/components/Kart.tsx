@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useMemo, useCallback } from "react";
+import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
-import { RigidBody, RapierRigidBody, useRapier } from "@react-three/rapier";
-import { useKeyboardControls, Trail } from "@react-three/drei";
+import { RigidBody, RapierRigidBody } from "@react-three/rapier";
+import { useKeyboardControls } from "@react-three/drei";
 import * as THREE from "three";
 import { BOOST_PAD_POSITIONS, CHECKPOINTS, FINISH_LINE } from "./Track";
 
@@ -28,7 +28,10 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
     euler: new THREE.Euler(0, 0, 0, "YXZ"),
     vel: new THREE.Vector3(),
     camTarget: new THREE.Vector3(),
+    camBehind: new THREE.Vector3(),
+    cameraTargetPos: new THREE.Vector3(),
     lookTarget: new THREE.Vector3(),
+    lookAhead: new THREE.Vector3(),
     tmpVec: new THREE.Vector3(),
     kartPos2D: new THREE.Vector2(),
     checkPos2D: new THREE.Vector2(),
@@ -54,6 +57,7 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
   const currentLap = useRef(0);
   const lastFinishCross = useRef(0);
   const syncTimer = useRef(0);
+  const hudTimer = useRef(0);
   const isDrifting = useRef(false);
   const tiltAngle = useRef(0);
 
@@ -181,7 +185,11 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
     }
 
     // ─── Callbacks ───
-    onSpeedChange?.(v.tmpVec.length(), currentMaxSpeed, isBoosting, isDrifting.current);
+    hudTimer.current += dt;
+    if (hudTimer.current > 0.05) {
+      hudTimer.current = 0;
+      onSpeedChange?.(v.tmpVec.length(), currentMaxSpeed, isBoosting, isDrifting.current);
+    }
 
     syncTimer.current += dt;
     if (syncTimer.current > 0.066) {
@@ -198,21 +206,22 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
     const kartPos = v.camTarget.set(pos.x, pos.y, pos.z);
     const camDist = 8;
     const camHeight = 3.8;
-    const camBehind = v.forward.clone().multiplyScalar(-camDist);
+    const camBehind = v.camBehind.copy(v.forward).multiplyScalar(-camDist);
     camBehind.y = camHeight;
 
     // Drift camera lean offset
     if (isDrifting.current && turnInput !== 0) {
-      camBehind.add(v.right.clone().multiplyScalar(turnInput * 2.5));
+      camBehind.addScaledVector(v.right, turnInput * 2.5);
       camBehind.y += 0.4;
     }
 
-    const target = kartPos.clone().add(camBehind);
+    const target = v.cameraTargetPos.copy(kartPos).add(camBehind);
     smoothCamPos.current.lerp(target, 6 * dt);
     state.camera.position.copy(smoothCamPos.current);
 
     v.lookTarget.set(pos.x, pos.y + 1.2, pos.z);
-    v.lookTarget.add(v.forward.clone().multiplyScalar(8));
+    v.lookAhead.copy(v.forward).multiplyScalar(8);
+    v.lookTarget.add(v.lookAhead);
     state.camera.lookAt(v.lookTarget);
 
     // Dynamic FOV
