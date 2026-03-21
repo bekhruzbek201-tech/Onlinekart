@@ -104,85 +104,95 @@ app.prepare().then(() => {
     console.log(`[SOCKET] Connected: ${socket.id}`);
 
     socket.on("create-room", (payload = {}, ack) => {
-      const { playerName, avatarUrl } = payload;
-      removePlayerFromRoom(socket);
+      try {
+        const { playerName, avatarUrl } = payload;
+        removePlayerFromRoom(socket);
 
-      const roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
-      const player = {
-        id: socket.id,
-        name: normalizeName(playerName),
-        avatarUrl,
-        position: SPAWN_POSITIONS[0],
-        rotation: [0, 0, 0, 1],
-        speed: 0,
-        color: KART_COLORS[0],
-        lap: 0,
-        finished: false,
-      };
+        const roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const player = {
+          id: socket.id,
+          name: normalizeName(playerName),
+          avatarUrl,
+          position: SPAWN_POSITIONS[0],
+          rotation: [0, 0, 0, 1],
+          speed: 0,
+          color: KART_COLORS[0],
+          lap: 0,
+          finished: false,
+        };
 
-      rooms.set(roomCode, {
-        players: [player],
-        state: "waiting",
-        host: socket.id,
-        raceStartTime: null,
-        totalLaps: 3,
-      });
+        rooms.set(roomCode, {
+          players: [player],
+          state: "waiting",
+          host: socket.id,
+          raceStartTime: null,
+          totalLaps: 3,
+        });
 
-      socket.join(roomCode);
-      socket.roomCode = roomCode;
+        socket.join(roomCode);
+        socket.roomCode = roomCode;
 
-      const room = rooms.get(roomCode);
-      socket.emit("room-created", { roomCode, player, room });
-      safeAck(ack, { ok: true, roomCode });
-      console.log(`[ROOM] Created ${roomCode} by ${player.name}`);
+        const room = rooms.get(roomCode);
+        socket.emit("room-created", { roomCode, player, room });
+        safeAck(ack, { ok: true, roomCode });
+        console.log(`[ROOM] Created ${roomCode} by ${player.name} (${socket.id})`);
+      } catch (err) {
+        console.error(`[ERROR] Room creation failed for ${socket.id}:`, err);
+        safeAck(ack, { ok: false, code: "SERVER_ERROR" });
+      }
     });
 
     socket.on("join-room", (payload = {}, ack) => {
-      const { roomCode: incomingRoomCode, playerName, avatarUrl } = payload;
-      removePlayerFromRoom(socket);
+      try {
+        const { roomCode: incomingRoomCode, playerName, avatarUrl } = payload;
+        removePlayerFromRoom(socket);
 
-      const roomCode = String(incomingRoomCode || "").trim().toUpperCase();
-      const room = rooms.get(roomCode);
+        const roomCode = String(incomingRoomCode || "").trim().toUpperCase();
+        const room = rooms.get(roomCode);
 
-      if (!room) {
-        socket.emit("join-error", "Room not found");
-        safeAck(ack, { ok: false, code: "ROOM_NOT_FOUND" });
-        return;
+        if (!room) {
+          socket.emit("join-error", "Room not found");
+          safeAck(ack, { ok: false, code: "ROOM_NOT_FOUND" });
+          return;
+        }
+
+        if (room.players.length >= MAX_ROOM_PLAYERS) {
+          socket.emit("join-error", "Room is full");
+          safeAck(ack, { ok: false, code: "ROOM_FULL" });
+          return;
+        }
+
+        if (room.state !== "waiting") {
+          socket.emit("join-error", "Race already started");
+          safeAck(ack, { ok: false, code: "RACE_STARTED" });
+          return;
+        }
+
+        const idx = room.players.length;
+        const player = {
+          id: socket.id,
+          name: normalizeName(playerName),
+          avatarUrl,
+          position: SPAWN_POSITIONS[idx % SPAWN_POSITIONS.length],
+          rotation: [0, 0, 0, 1],
+          speed: 0,
+          color: KART_COLORS[idx % KART_COLORS.length],
+          lap: 0,
+          finished: false,
+        };
+
+        room.players.push(player);
+        socket.join(roomCode);
+        socket.roomCode = roomCode;
+
+        socket.emit("joined-room", { roomCode, player, room });
+        io.to(roomCode).emit("room-update", room);
+        safeAck(ack, { ok: true, roomCode });
+        console.log(`[ROOM] ${player.name} joined ${roomCode} (${room.players.length}/${MAX_ROOM_PLAYERS})`);
+      } catch (err) {
+        console.error(`[ERROR] Room join failed for ${socket.id}:`, err);
+        safeAck(ack, { ok: false, code: "SERVER_ERROR" });
       }
-
-      if (room.players.length >= MAX_ROOM_PLAYERS) {
-        socket.emit("join-error", "Room is full");
-        safeAck(ack, { ok: false, code: "ROOM_FULL" });
-        return;
-      }
-
-      if (room.state !== "waiting") {
-        socket.emit("join-error", "Race already started");
-        safeAck(ack, { ok: false, code: "RACE_STARTED" });
-        return;
-      }
-
-      const idx = room.players.length;
-      const player = {
-        id: socket.id,
-        name: normalizeName(playerName),
-        avatarUrl,
-        position: SPAWN_POSITIONS[idx] || SPAWN_POSITIONS[0],
-        rotation: [0, 0, 0, 1],
-        speed: 0,
-        color: KART_COLORS[idx] || KART_COLORS[0],
-        lap: 0,
-        finished: false,
-      };
-
-      room.players.push(player);
-      socket.join(roomCode);
-      socket.roomCode = roomCode;
-
-      socket.emit("joined-room", { roomCode, player, room });
-      io.to(roomCode).emit("room-update", room);
-      safeAck(ack, { ok: true, roomCode });
-      console.log(`[ROOM] ${player.name} joined ${roomCode} (${room.players.length} players)`);
     });
 
     socket.on("start-race", (_payload, ack) => {
@@ -263,72 +273,76 @@ app.prepare().then(() => {
     });
 
     socket.on("quick-join", (payload = {}, ack) => {
-      const { playerName, avatarUrl } = payload;
-      removePlayerFromRoom(socket);
+      try {
+        const { playerName, avatarUrl } = payload;
+        removePlayerFromRoom(socket);
 
-      // Find an available room that is in waiting state and not full
-      let foundRoomCode = null;
-      for (const [code, r] of rooms.entries()) {
-        if (r.state === "waiting" && r.players.length < MAX_ROOM_PLAYERS) {
-          foundRoomCode = code;
-          break;
+        // Find an available room that is in waiting state and not full
+        let foundRoomCode = null;
+        for (const [code, r] of rooms.entries()) {
+          if (r.state === "waiting" && r.players.length < MAX_ROOM_PLAYERS) {
+            foundRoomCode = code;
+            break;
+          }
         }
-      }
 
-      if (foundRoomCode) {
-        // Use existing join logic
-        const room = rooms.get(foundRoomCode);
-        const idx = room.players.length;
-        const player = {
-          id: socket.id,
-          name: normalizeName(playerName),
-          avatarUrl,
-          position: SPAWN_POSITIONS[idx] || SPAWN_POSITIONS[0],
-          rotation: [0, 0, 0, 1],
-          speed: 0,
-          color: KART_COLORS[idx] || KART_COLORS[0],
-          lap: 0,
-          finished: false,
-        };
+        if (foundRoomCode) {
+          const room = rooms.get(foundRoomCode);
+          const idx = room.players.length;
+          const player = {
+            id: socket.id,
+            name: normalizeName(playerName),
+            avatarUrl,
+            position: SPAWN_POSITIONS[idx % SPAWN_POSITIONS.length],
+            rotation: [0, 0, 0, 1],
+            speed: 0,
+            color: KART_COLORS[idx % KART_COLORS.length],
+            lap: 0,
+            finished: false,
+          };
 
-        room.players.push(player);
-        socket.join(foundRoomCode);
-        socket.roomCode = foundRoomCode;
+          room.players.push(player);
+          socket.join(foundRoomCode);
+          socket.roomCode = foundRoomCode;
 
-        socket.emit("joined-room", { roomCode: foundRoomCode, player, room });
-        io.to(foundRoomCode).emit("room-update", room);
-        safeAck(ack, { ok: true, roomCode: foundRoomCode });
-        console.log(`[ROOM] ${player.name} quick-joined ${foundRoomCode}`);
-      } else {
-        // Create a new room if none found
-        const roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
-        const player = {
-          id: socket.id,
-          name: normalizeName(playerName),
-          avatarUrl,
-          position: SPAWN_POSITIONS[0],
-          rotation: [0, 0, 0, 1],
-          speed: 0,
-          color: KART_COLORS[0],
-          lap: 0,
-          finished: false,
-        };
+          socket.emit("joined-room", { roomCode: foundRoomCode, player, room });
+          io.to(foundRoomCode).emit("room-update", room);
+          safeAck(ack, { ok: true, roomCode: foundRoomCode });
+          console.log(`[ROOM] ${player.name} quick-joined ${foundRoomCode} (${room.players.length}/${MAX_ROOM_PLAYERS})`);
+        } else {
+          // Create a new room if none found
+          const roomCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+          const player = {
+            id: socket.id,
+            name: normalizeName(playerName),
+            avatarUrl,
+            position: SPAWN_POSITIONS[0],
+            rotation: [0, 0, 0, 1],
+            speed: 0,
+            color: KART_COLORS[0],
+            lap: 0,
+            finished: false,
+          };
 
-        rooms.set(roomCode, {
-          players: [player],
-          state: "waiting",
-          host: socket.id,
-          raceStartTime: null,
-          totalLaps: 3,
-        });
+          rooms.set(roomCode, {
+            players: [player],
+            state: "waiting",
+            host: socket.id,
+            raceStartTime: null,
+            totalLaps: 3,
+          });
 
-        socket.join(roomCode);
-        socket.roomCode = roomCode;
+          socket.join(roomCode);
+          socket.roomCode = roomCode;
 
-        const room = rooms.get(roomCode);
-        socket.emit("room-created", { roomCode, player, room });
-        safeAck(ack, { ok: true, roomCode });
-        console.log(`[ROOM] Quick join created ${roomCode} for ${player.name}`);
+          const room = rooms.get(roomCode);
+          socket.emit("room-created", { roomCode, player, room });
+          safeAck(ack, { ok: true, roomCode });
+          console.log(`[ROOM] Quick join created ${roomCode} for ${player.name}`);
+        }
+      } catch (err) {
+        console.error(`[ERROR] Quick join failed for ${socket.id}:`, err);
+        safeAck(ack, { ok: false, code: "SERVER_ERROR" });
       }
     });
 

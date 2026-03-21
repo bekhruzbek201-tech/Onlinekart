@@ -79,18 +79,22 @@ function mapJoinErrorCode(code?: string): string {
       return "Room is full.";
     case "RACE_STARTED":
       return "Race in this room already started.";
+    case "SERVER_ERROR":
+      return "Internal server error. Please try again later.";
     default:
-      return "Could not join room.";
-  }
+      return "Could not join room. Is the connection stable?";
+    }
 }
 
 function mapCreateErrorCode(code?: string): string {
   switch (code) {
     case "NO_ROOM":
       return "Could not prepare lobby. Retry once.";
+    case "SERVER_ERROR":
+      return "Internal server error while creating room.";
     default:
-      return "Could not create lobby.";
-  }
+      return "Could not create lobby. Connection may be weak.";
+    }
 }
 
 function mapStartErrorCode(code?: string): string {
@@ -566,6 +570,13 @@ export function Lobby({ onEnterGame, onSinglePlayer }: LobbyProps) {
 
   return (
     <div className="fixed inset-0 bg-[#0d0d0d] z-50 flex flex-col items-center justify-center scanlines overflow-hidden">
+      <div className="absolute top-6 left-6 z-[100] flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${waitingRoom ? "bg-green-500" : isConnecting ? "bg-yellow-500 animate-pulse" : "bg-red-500"}`} />
+        <div className="text-[7px] text-white/30 uppercase tracking-[0.3em] font-bold">
+          {waitingRoom ? "Multiplayer Active" : isConnecting ? "Stabilizing Comm-Link..." : "Disconnected from Command"}
+        </div>
+      </div>
+
       <KartShowcase color={session ? "#1a5c8b" : "#8b1a1a"} />
 
       <div className="text-center mb-12 relative z-[99] pointer-events-none drop-shadow-2xl">
