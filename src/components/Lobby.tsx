@@ -371,8 +371,7 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
       if (ack.ok === false) {
         throw new Error(mapCreateErrorCode(ack.code));
       }
-
-      setConnectionHint("Finalizing room...");
+      // Let handleRoomCreated clear everything naturally
       startRoomSyncWatchdog();
     } catch (connectError) {
       clearRoomSyncTimer();
@@ -419,8 +418,7 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
       if (ack.ok === false) {
         throw new Error(mapJoinErrorCode(ack.code));
       }
-
-      setConnectionHint("Finalizing room...");
+      // Let handleJoinedRoom clear everything naturally
       startRoomSyncWatchdog();
     } catch (connectError) {
       clearRoomSyncTimer();
@@ -452,8 +450,7 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
       if (ack.ok === false) {
         throw new Error("Could not join any room.");
       }
-
-      setConnectionHint("Preparing circuit...");
+      
       startRoomSyncWatchdog();
     } catch (connectError) {
       clearRoomSyncTimer();
@@ -471,14 +468,17 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
 
     setError("");
     setConnectionHint("Starting race...");
+    setIsConnecting(true); // Disable button immediately so user knows it was clicked
     try {
       const ack = await emitWithAck(getSocket(), "start-race", {}, 10000);
       if (ack.ok === false) {
         throw new Error(mapStartErrorCode(ack.code));
       }
-      setConnectionHint("");
+      // We don't clear isConnecting here, we wait for race-countdown socket event to launch game
+      setConnectionHint("Waiting for server...");
     } catch (error) {
       setConnectionHint("");
+      setIsConnecting(false);
       setError(getErrorMessage(error));
     }
   };
