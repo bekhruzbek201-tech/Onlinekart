@@ -40,6 +40,7 @@ interface LobbyProps {
     color: string;
   }) => void;
   onSinglePlayer: () => void;
+  initialRoomCode?: string;
 }
 
 interface WaitingRoomState {
@@ -127,7 +128,7 @@ function emitWithAck(
   });
 }
 
-export function Lobby({ onEnterGame, onSinglePlayer }: LobbyProps) {
+export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyProps) {
   const [screen, setScreen] = useState<"main" | "create" | "join">("main");
   const [playerName, setPlayerName] = useState("");
   const [roomCode, setRoomCode] = useState("");
@@ -159,16 +160,20 @@ export function Lobby({ onEnterGame, onSinglePlayer }: LobbyProps) {
   }, [waitingRoom]);
 
   useEffect(() => {
-    const inviteCode = readInviteCode();
+    const inviteCode = initialRoomCode || readInviteCode();
     if (!inviteCode) return;
 
     const frame = requestAnimationFrame(() => {
       setRoomCode(inviteCode);
       setScreen("join");
+      if (initialRoomCode) {
+        // Automatically attempt to join if returning
+        handleJoin(inviteCode);
+      }
     });
 
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [initialRoomCode]);
 
   const clearRoomSyncTimer = () => {
     if (!roomSyncTimeoutRef.current) return;
@@ -243,6 +248,19 @@ export function Lobby({ onEnterGame, onSinglePlayer }: LobbyProps) {
   const handleSocketConnected = useStableCallback(() => {
     if (isConnecting) {
       setConnectionHint("Connected. Waiting for lobby...");
+    }
+    // Auto-rejoin if we were already in a room and just disconnected momentarily
+    if (waitingRoom && !isConnecting) {
+      setConnectionHint("Reconnecting to room...");
+      const socket = getSocket();
+      emitWithAck(socket, "join-room", {
+        roomCode: waitingRoom.roomCode,
+        playerName: playerName.trim() || displayName || "Pilot",
+        avatarUrl,
+      }, 10000).catch(() => {
+        setConnectionHint("");
+        setError("Reconnection failed. You might need to rejoin manually.");
+      });
     }
   });
 
@@ -365,9 +383,10 @@ export function Lobby({ onEnterGame, onSinglePlayer }: LobbyProps) {
     }
   };
 
-  const handleJoin = async () => {
+  const handleJoin = async (explicitCode?: string | React.MouseEvent) => {
     const trimmedName = playerName.trim() || displayName || "Pilot";
-    const normalizedCode = roomCode.trim().toUpperCase();
+    const actualCode = typeof explicitCode === "string" ? explicitCode : roomCode;
+    const normalizedCode = actualCode.trim().toUpperCase();
 
     if (!trimmedName) {
       setError("Please enter your name.");

@@ -58,6 +58,7 @@ export default function Home() {
   const [myId, setMyId] = useState("");
   const [kartColor, setKartColor] = useState("#8b1a1a");
   const [isMultiplayer, setIsMultiplayer] = useState(false);
+  const [isHost, setIsHost] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [finishResults, setFinishResults] = useState<RaceResult[] | null>(null);
   const [isLowPowerDevice, setIsLowPowerDevice] = useState(false);
@@ -130,11 +131,12 @@ export default function Home() {
     setRaceState("countdown");
   }, []);
 
-  const handleEnterGame = useCallback((data: { roomCode: string; playerId: string; color: string }) => {
+  const handleEnterGame = useCallback((data: { roomCode: string; playerId: string; color: string; isHost?: boolean }) => {
     setIsMultiplayer(true);
     setRoomCode(data.roomCode);
     setMyId(data.playerId);
     setKartColor(data.color);
+    setIsHost(!!data.isHost);
     setLap(0);
     setRaceTime(0);
     setFinishResults(null);
@@ -170,11 +172,35 @@ export default function Home() {
       if (raceTimerRef.current) clearInterval(raceTimerRef.current);
     });
 
+    socket.on("return-to-lobby", () => {
+      setScreen("lobby");
+      setRaceState("waiting");
+      setLap(0);
+      setRaceTime(0);
+      setSpeed(0);
+      setMaxSpeed(42);
+      setIsBoosting(false);
+      setIsDrifting(false);
+      setKartRotation(0);
+      setKartPos({ x: 50, z: 44 });
+      setOpponents([]);
+      setFinishResults(null);
+      setShowCountdown(false);
+      
+      hudSnapshotRef.current = {
+        speed: 0,
+        maxSpeed: 42,
+        isBoosting: false,
+        isDrifting: false,
+      };
+    });
+
     return () => {
       socket.off("race-countdown");
       socket.off("race-start");
       socket.off("players-state");
       socket.off("race-results");
+      socket.off("return-to-lobby");
     };
   }, [myId]);
 
@@ -324,6 +350,7 @@ export default function Home() {
     setMyId("");
     setKartColor("#8b1a1a");
     setIsMultiplayer(false);
+    setIsHost(false);
     hudSnapshotRef.current = {
       speed: 0,
       maxSpeed: 42,
@@ -332,8 +359,39 @@ export default function Home() {
     };
   }, [isMultiplayer]);
 
+  const handlePlayAgain = useCallback(() => {
+    if (isMultiplayer) {
+      const socket = getSocket();
+      socket.emit("play-again");
+    } else {
+      setScreen("lobby");
+      setRaceState("waiting");
+      setLap(0);
+      setRaceTime(0);
+      setSpeed(0);
+      setMaxSpeed(42);
+      setIsBoosting(false);
+      setIsDrifting(false);
+      setKartRotation(0);
+      setKartPos({ x: 50, z: 44 });
+      setOpponents([]);
+      setFinishResults(null);
+      setShowCountdown(false);
+      
+      hudSnapshotRef.current = {
+        speed: 0,
+        maxSpeed: 42,
+        isBoosting: false,
+        isDrifting: false,
+      };
+      
+      // Auto-retrigger single player mode smoothly
+      handleSinglePlayer();
+    }
+  }, [isMultiplayer, handleSinglePlayer]);
+
   if (screen === "lobby") {
-    return <Lobby onEnterGame={handleEnterGame} onSinglePlayer={handleSinglePlayer} />;
+    return <Lobby onEnterGame={handleEnterGame} onSinglePlayer={handleSinglePlayer} initialRoomCode={roomCode} />;
   }
 
   return (
@@ -485,12 +543,21 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="text-center">
+              <div className="text-center flex flex-col sm:flex-row gap-4 justify-center">
+                {(!isMultiplayer || isHost) && (
+                  <button
+                    onClick={handlePlayAgain}
+                    className="bg-[#d4a017] hover:bg-[#e4b027] text-black text-[10px] px-8 py-3.5 uppercase tracking-[0.3em] font-black transition-colors shadow-[5px_5px_0px_#000] cursor-pointer"
+                  >
+                    Играть снова
+                  </button>
+                )}
+                
                 <button
                   onClick={handleBackToLobby}
                   className="bg-[#c41e1e] hover:bg-[#e02020] text-white text-[10px] px-8 py-3.5 uppercase tracking-[0.3em] transition-colors shadow-[5px_5px_0px_#000] cursor-pointer"
                 >
-                  Назад в лобби
+                  Выйти
                 </button>
               </div>
             </div>

@@ -92,6 +92,7 @@ app.prepare().then(() => {
         room.host = room.players[0].id;
       }
       io.to(roomCode).emit("room-update", room);
+      io.to(roomCode).emit("players-state", room.players);
       console.log(
         `[ROOM] Player left ${roomCode}. Remaining players: ${room.players.length}`
       );
@@ -223,6 +224,35 @@ app.prepare().then(() => {
         io.to(socket.roomCode).emit("race-start", { startTime: room.raceStartTime });
         console.log(`[RACE] Started in ${socket.roomCode}`);
       }, 4000);
+    });
+
+    socket.on("play-again", (_payload, ack) => {
+      if (!socket.roomCode) {
+        safeAck(ack, { ok: false, code: "NO_ROOM" });
+        return;
+      }
+
+      const room = rooms.get(socket.roomCode);
+      if (!room || room.host !== socket.id) {
+        safeAck(ack, { ok: false, code: "NOT_HOST" });
+        return;
+      }
+
+      room.state = "waiting";
+      room.raceStartTime = null;
+      room.players.forEach((p, idx) => {
+        p.position = SPAWN_POSITIONS[idx % SPAWN_POSITIONS.length];
+        p.rotation = [0, 0, 0, 1];
+        p.speed = 0;
+        p.lap = 0;
+        p.finished = false;
+        p.finishTime = null;
+      });
+
+      io.to(socket.roomCode).emit("room-update", room);
+      io.to(socket.roomCode).emit("return-to-lobby", room);
+      safeAck(ack, { ok: true });
+      console.log(`[ROOM] ${socket.roomCode} returned to lobby for play again.`);
     });
 
     socket.on("player-update", (data) => {

@@ -10,9 +10,13 @@ function resolveSocketUrl(): string {
     return "";
   }
 
-  const explicitUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  const explicitUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL;
   if (explicitUrl && explicitUrl.trim()) {
-    return explicitUrl.trim();
+    let url = explicitUrl.trim();
+    if (!url.startsWith('http')) {
+      url = `https://${url}`;
+    }
+    return url;
   }
 
   return window.location.origin;
