@@ -163,18 +163,23 @@ app.prepare().then(() => {
           return;
         }
 
-        if (room.state !== "waiting") {
+        if (room.state !== "waiting" && room.state !== "hangout") {
           socket.emit("join-error", "Race already started");
           safeAck(ack, { ok: false, code: "RACE_STARTED" });
           return;
         }
 
         const idx = room.players.length;
+        const isHangout = roomCode.startsWith("HG-");
+        const position = isHangout 
+          ? [Math.random() * 10 - 5, 1.5, 20 + Math.random() * 10]
+          : SPAWN_POSITIONS[idx % SPAWN_POSITIONS.length];
+
         const player = {
           id: socket.id,
           name: normalizeName(playerName),
           avatarUrl,
-          position: SPAWN_POSITIONS[idx % SPAWN_POSITIONS.length],
+          position,
           rotation: [0, 0, 0, 1],
           speed: 0,
           color: KART_COLORS[idx % KART_COLORS.length],
@@ -387,7 +392,7 @@ app.prepare().then(() => {
           id: socket.id,
           name: normalizeName(playerName),
           avatarUrl,
-          position: SPAWN_POSITIONS[0],
+          position: [0, 1.5, 20],
           rotation: [0, 0, 0, 1],
           speed: 0,
           color: KART_COLORS[0],

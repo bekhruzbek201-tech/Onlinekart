@@ -147,9 +147,8 @@ function Lamp({ position }: { position: [number, number, number] }) {
       </mesh>
       <mesh position={[0, 2.6, 0]}>
         <boxGeometry args={[0.5, 0.12, 0.5]} />
-        <meshStandardMaterial color="#ffffaa" emissive="#ffeeaa" emissiveIntensity={1} />
+        <meshStandardMaterial color="#ffffdd" emissive="#ffeeaa" emissiveIntensity={2} />
       </mesh>
-      <pointLight position={[0, 2.2, 0]} color="#ffe8aa" intensity={1.5} distance={18} decay={2} />
     </group>
   );
 }
@@ -371,10 +370,13 @@ export const HangoutTrack = memo(function HangoutTrack() {
         <mesh visible={false}><boxGeometry args={[400, 1, 400]} /></mesh>
       </RigidBody>
 
-      {/* ══════════ AMBIENT LIGHTS ══════════ */}
-      <pointLight position={[0, 30, 0]} color="#ffffff" intensity={3} distance={100} />
-      <pointLight position={[50, 20, -50]} color="#ffe8aa" intensity={1.5} distance={60} />
-      <pointLight position={[-50, 20, 50]} color="#aaccff" intensity={1} distance={60} />
+      {/* ══════════ AMBIENT/DIRECTIONAL LIGHTS ══════════ */}
+      {/* Warm sunset/city glow from one side */}
+      <directionalLight position={[100, 50, -50]} intensity={1.5} color="#ffd4a3" shadow-bias={-0.0001} />
+      {/* Cool moon/street reflection from the other */}
+      <directionalLight position={[-100, 30, 50]} intensity={0.5} color="#90b0d0" />
+      {/* Center plaza highlight */}
+      <pointLight position={[0, 30, 0]} color="#ffffff" intensity={1.5} distance={150} decay={1.5} />
     </group>
   );
 });

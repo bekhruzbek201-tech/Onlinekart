@@ -93,9 +93,8 @@ function Lamp({ position }: { position: [number, number, number] }) {
       </mesh>
       <mesh position={[0, 3, 0]}>
         <boxGeometry args={[0.5, 0.15, 0.5]} />
-        <meshStandardMaterial color="#ffffaa" emissive="#ffeeaa" emissiveIntensity={1} />
+        <meshStandardMaterial color="#ffffdd" emissive="#ffeeaa" emissiveIntensity={2} />
       </mesh>
-      <pointLight position={[0, 2.5, 0]} color="#ffe8aa" intensity={2} distance={20} decay={2} />
     </group>
   );
 }
