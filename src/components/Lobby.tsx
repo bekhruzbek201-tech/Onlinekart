@@ -570,9 +570,14 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
 
             {isHost && (
               <button
-                onClick={handleStartRace}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleStartRace();
+                }}
                 disabled={waitingRoom.players.length < 2 || isConnecting}
-                className="w-full mt-4 bg-[#c41e1e] hover:bg-[#e02020] disabled:bg-[#444] text-white text-xs py-3 uppercase tracking-[0.3em] transition-colors shadow-[4px_4px_0px_#000] cursor-pointer disabled:cursor-not-allowed"
+                className="w-full mt-4 bg-[#c41e1e] hover:bg-[#e02020] disabled:bg-[#444] text-white text-xs py-3 uppercase tracking-[0.3em] transition-colors shadow-[4px_4px_0px_#000] cursor-pointer disabled:cursor-not-allowed pointer-events-auto relative z-50"
               >
                 {isConnecting ? "Starting..." : "Start Race"}
               </button>
