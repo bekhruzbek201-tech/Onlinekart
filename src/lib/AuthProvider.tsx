@@ -63,12 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = async () => {
-    // Determine the redirect URL. It prioritizes NEXT_PUBLIC_SITE_URL (deployment), then window.location.origin.
-    let redirectUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_VERCEL_URL;
-    if (!redirectUrl && typeof window !== 'undefined') {
-      redirectUrl = window.location.origin;
-    }
-    // Ensure it has https:// if not localhost and doesn't already have a protocol
+    // Read the exact URL currently in the browser.
+    // If we use process.env here, Vercel might accidentally use a 'localhost:3000' value pasted from local config.
+    let redirectUrl = typeof window !== 'undefined' 
+      ? window.location.origin 
+      : (process.env.NEXT_PUBLIC_SITE_URL || '');
+
     if (redirectUrl && !redirectUrl.includes('http')) {
       redirectUrl = `https://${redirectUrl}`;
     }
