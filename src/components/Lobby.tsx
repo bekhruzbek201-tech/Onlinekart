@@ -341,8 +341,10 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
   };
 
   const prepareSocket = async () => {
-    const socket = await ensureSocketConnected(15000, 4);
-    await emitWithAck(socket, "leave-room", {}, 6000).catch(() => ({ ok: true }));
+    // Rely on the faster default timeouts
+    const socket = await ensureSocketConnected(6000, 2);
+    // Silent catch if leave-room times out fast on disconnected networks
+    await emitWithAck(socket, "leave-room", {}, 3000).catch(() => ({ ok: true }));
     return socket;
   };
 

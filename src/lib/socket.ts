@@ -103,8 +103,8 @@ function waitForSocketConnect(s: Socket, timeoutMs: number): Promise<Socket> {
 }
 
 export async function ensureSocketConnected(
-  timeoutMs = 12000,
-  retries = 3
+  timeoutMs = 6000, // Reduced from 15000 to 6000 for faster UI feedback
+  retries = 2 // Reduced from 4
 ): Promise<Socket> {
   const s = getSocket();
   if (s.connected) return s;
@@ -112,6 +112,7 @@ export async function ensureSocketConnected(
   if (connectPromise) return connectPromise;
 
   connectPromise = (async () => {
+    // Only wake if different origin
     await wakeSocketHost(getSocketUrl());
 
     let lastError: Error | null = null;
@@ -128,7 +129,7 @@ export async function ensureSocketConnected(
           error instanceof Error ? error : new Error("Socket connection failed");
 
         if (attempt < retries - 1) {
-          const backoffMs = 700 * (attempt + 1);
+          const backoffMs = 500;
           await new Promise((resolve) => setTimeout(resolve, backoffMs));
         }
       }
