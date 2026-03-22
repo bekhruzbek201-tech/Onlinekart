@@ -14,12 +14,14 @@ import {
 import { KeyboardControls } from "@react-three/drei";
 import { Kart } from "@/components/Kart";
 import { Track } from "@/components/Track";
+import { HangoutTrack } from "@/components/HangoutTrack";
 import { HUD } from "@/components/HUD";
 import { Lobby } from "@/components/Lobby";
 import { Countdown } from "@/components/Countdown";
 import { Minimap } from "@/components/Minimap";
 import { OpponentKart } from "@/components/OpponentKart";
 import { TouchControls } from "@/components/TouchControls";
+import { GameChat } from "@/components/GameChat";
 import { getSocket } from "@/lib/socket";
 
 type GameScreen = "lobby" | "game";
@@ -63,6 +65,7 @@ export default function Home() {
   const [finishResults, setFinishResults] = useState<RaceResult[] | null>(null);
   const [isLowPowerDevice, setIsLowPowerDevice] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [gameMode, setGameMode] = useState<"race" | "hangout">("race");
   const totalLaps = 3;
 
   const raceStartTime = useRef(0);
@@ -120,6 +123,7 @@ export default function Home() {
     setRoomCode(undefined);
     setMyId("");
     setKartColor("#8b1a1a");
+    setGameMode("race");
     setLap(0);
     setRaceTime(0);
     setFinishResults(null);
@@ -132,19 +136,27 @@ export default function Home() {
   }, []);
 
   const handleEnterGame = useCallback((data: { roomCode: string; playerId: string; color: string; isHost?: boolean }) => {
+    const isHangout = data.roomCode.startsWith("HG-");
     setIsMultiplayer(true);
     setRoomCode(data.roomCode);
     setMyId(data.playerId);
     setKartColor(data.color);
     setIsHost(!!data.isHost);
+    setGameMode(isHangout ? "hangout" : "race");
     setLap(0);
     setRaceTime(0);
     setFinishResults(null);
     setSpeed(0);
     setMaxSpeed(42);
     setScreen("game");
-    setShowCountdown(true);
-    setRaceState("countdown");
+    if (isHangout) {
+      // In hangout mode, start driving immediately - no countdown needed
+      setShowCountdown(false);
+      setRaceState("racing");
+    } else {
+      setShowCountdown(true);
+      setRaceState("countdown");
+    }
   }, []);
 
   // Socket events
@@ -351,6 +363,7 @@ export default function Home() {
     setKartColor("#8b1a1a");
     setIsMultiplayer(false);
     setIsHost(false);
+    setGameMode("race");
     hudSnapshotRef.current = {
       speed: 0,
       maxSpeed: 42,
@@ -453,7 +466,7 @@ export default function Home() {
 
           <Suspense fallback={null}>
             <Physics gravity={[0, -22, 0]}>
-              <Track />
+              {gameMode === "hangout" ? <HangoutTrack /> : <Track />}
               <Kart
                 onSpeedChange={handleSpeedChange}
                 onLapChange={handleLapChange}
@@ -479,16 +492,47 @@ export default function Home() {
       </KeyboardControls>
 
       {/* 2D Overlays */}
-      <HUD
-        speed={speed}
-        maxSpeed={maxSpeed}
-        lap={lap}
-        totalLaps={totalLaps}
-        raceTime={raceTime}
-        isBoosting={isBoosting}
-        isDrifting={isDrifting}
-        roomCode={roomCode}
-      />
+      {gameMode === "hangout" ? (
+        <>
+          {/* Scanlines */}
+          <div className="scanlines absolute inset-0 pointer-events-none z-40" />
+          {/* Hangout mode header */}
+          <div className="absolute top-4 left-4 z-30 select-none pointer-events-none animate-slideDown">
+            <div className="bg-[#2d5a3d] px-5 py-2.5 inline-block shadow-[5px_5px_0px_#000]">
+              <h1 className="text-xs sm:text-base text-white uppercase tracking-[0.35em] leading-none">
+                🏙️ HANGOUT
+              </h1>
+            </div>
+            {roomCode && (
+              <div className="bg-black/80 border border-[#4a8060] px-3 py-1 mt-1.5 inline-block">
+                <span className="text-[7px] text-[#4a8060] uppercase tracking-[0.3em]">
+                  Room: {roomCode}
+                </span>
+              </div>
+            )}
+          </div>
+          {/* Speed display (minimal) */}
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-30 select-none pointer-events-none">
+            <div className="bg-black/70 border border-[#333] px-6 py-3 shadow-[4px_4px_0px_#000]">
+              <div className="text-2xl text-white tabular-nums text-center">
+                {Math.round((speed / 42) * 220)}
+                <span className="text-[8px] text-[#666] ml-1">KM/H</span>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <HUD
+          speed={speed}
+          maxSpeed={maxSpeed}
+          lap={lap}
+          totalLaps={totalLaps}
+          raceTime={raceTime}
+          isBoosting={isBoosting}
+          isDrifting={isDrifting}
+          roomCode={roomCode}
+        />
+      )}
 
       <Minimap
         kartX={kartPos.x}
@@ -502,6 +546,35 @@ export default function Home() {
       />
 
       {showCountdown && <Countdown onComplete={handleCountdownComplete} />}
+
+      {/* In-game Chat */}
+      {isMultiplayer && <GameChat roomCode={roomCode} myId={myId} />}
+
+      {/* Leave button for hangout mode */}
+      {gameMode === "hangout" && (
+        <div className="absolute top-4 right-4 z-40">
+          <button
+            type="button"
+            onClick={handleBackToLobby}
+            className="bg-black/70 border border-[#c41e1e] text-[8px] text-white/60 px-4 py-2 uppercase tracking-widest hover:text-white hover:bg-[#c41e1e]/20 transition-all cursor-pointer pointer-events-auto"
+          >
+            ← Leave Hangout
+          </button>
+        </div>
+      )}
+
+      {/* Leave button for multiplayer race */}
+      {gameMode === "race" && isMultiplayer && raceState !== "finished" && (
+        <div className="absolute top-14 right-4 z-30">
+          <button
+            type="button"
+            onClick={handleBackToLobby}
+            className="bg-black/50 border border-[#333] text-[7px] text-white/40 px-3 py-1.5 uppercase tracking-widest hover:text-white/70 hover:border-[#555] transition-all cursor-pointer pointer-events-auto"
+          >
+            ← Exit Race
+          </button>
+        </div>
+      )}
 
       {/* ── Finish Screen ── */}
       {raceState === "finished" && (

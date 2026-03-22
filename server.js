@@ -376,6 +376,67 @@ app.prepare().then(() => {
       }
     });
 
+    // ── Hangout mode: create a free-roam room ──
+    socket.on("create-hangout", (payload = {}, ack) => {
+      try {
+        const { playerName, avatarUrl } = payload;
+        removePlayerFromRoom(socket);
+
+        const roomCode = "HG-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+        const player = {
+          id: socket.id,
+          name: normalizeName(playerName),
+          avatarUrl,
+          position: SPAWN_POSITIONS[0],
+          rotation: [0, 0, 0, 1],
+          speed: 0,
+          color: KART_COLORS[0],
+          lap: 0,
+          finished: false,
+        };
+
+        rooms.set(roomCode, {
+          players: [player],
+          state: "hangout",
+          host: socket.id,
+          raceStartTime: null,
+          totalLaps: 0,
+          mode: "hangout",
+        });
+
+        socket.join(roomCode);
+        socket.roomCode = roomCode;
+
+        const room = rooms.get(roomCode);
+        socket.emit("room-created", { roomCode, player, room });
+        safeAck(ack, { ok: true, roomCode });
+        console.log(`[HANGOUT] Created ${roomCode} by ${player.name}`);
+      } catch (err) {
+        console.error(`[ERROR] Hangout creation failed:`, err);
+        safeAck(ack, { ok: false, code: "SERVER_ERROR" });
+      }
+    });
+
+    // ── Chat messages ──
+    socket.on("chat-message", (payload = {}) => {
+      if (!socket.roomCode) return;
+      const room = rooms.get(socket.roomCode);
+      if (!room) return;
+
+      const player = room.players.find((p) => p.id === socket.id);
+      if (!player) return;
+
+      const text = String(payload.text || "").trim().slice(0, 120);
+      if (!text) return;
+
+      io.to(socket.roomCode).emit("chat-message", {
+        playerId: socket.id,
+        name: player.name,
+        text,
+        timestamp: Date.now(),
+      });
+    });
+
     socket.on("disconnect", () => {
       removePlayerFromRoom(socket);
       console.log(`[SOCKET] Disconnected: ${socket.id}`);

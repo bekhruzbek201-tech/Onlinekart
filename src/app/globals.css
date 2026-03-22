@@ -27,7 +27,7 @@ html, body {
   --soviet-cream: #e8dcc8;
 }
 
-/* CRT Scanlines */
+/* CRT Scanlines - reduced opacity for performance */
 .scanlines::after {
   content: "";
   position: absolute;
@@ -36,8 +36,8 @@ html, body {
     0deg,
     transparent,
     transparent 2px,
-    rgba(0, 0, 0, 0.03) 2px,
-    rgba(0, 0, 0, 0.03) 4px
+    rgba(0, 0, 0, 0.02) 2px,
+    rgba(0, 0, 0, 0.02) 4px
   );
   pointer-events: none;
   z-index: 50;
@@ -59,6 +59,11 @@ html, body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes countPop {
   0% { transform: scale(0.3); opacity: 0; }
   50% { transform: scale(1.2); opacity: 1; }
@@ -76,12 +81,36 @@ html, body {
   50% { box-shadow: 0 0 20px rgba(212, 160, 23, 0.7); }
 }
 
+@keyframes gridScroll {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(40px); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes lapFlash {
+  0% { background-color: var(--soviet-gold); transform: scale(1.1); }
+  100% { background-color: transparent; transform: scale(1); }
+}
+
+@keyframes respawnFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.4s ease-out;
 }
 
 .animate-slideDown {
   animation: slideDown 0.3s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
 }
 
 .animate-countPop {
@@ -96,13 +125,18 @@ html, body {
   animation: boostPulse 0.4s ease-in-out infinite;
 }
 
-/* Speed lines overlay */
+.animate-lapFlash {
+  animation: lapFlash 0.5s ease-out;
+}
+
+/* Speed lines overlay - optimized */
 .speed-lines {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 20;
   background: radial-gradient(ellipse at center, transparent 40%, rgba(255,255,255,0.02) 100%);
+  will-change: background;
 }
 
 .speed-lines.active {
@@ -122,4 +156,20 @@ html, body {
 /* Loading screen */
 .loading-bar {
   background: linear-gradient(90deg, var(--soviet-red) 0%, var(--soviet-gold) 100%);
+}
+
+/* GPU-accelerated transforms */
+.gpu-accelerated {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Button hover improvements */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth transitions for all interactive elements */
+button, input {
+  transition: all 0.15s ease-out;
 }

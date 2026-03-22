@@ -197,6 +197,20 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
     setIsConnecting(false);
     setError("");
     setConnectionHint("");
+
+    if (payload.roomCode.startsWith("HG-")) {
+      // Hangouts skip the waiting room logic
+      onEnterGame({
+        roomCode: payload.roomCode,
+        playerId: payload.player.id,
+        playerName: playerName.trim() || displayName || "Pilot",
+        players: payload.room.players,
+        isHost: true,
+        color: payload.player.color || "#8b1a1a",
+      });
+      return;
+    }
+
     setWaitingRoom({
       roomCode: payload.roomCode,
       players: payload.room.players,
@@ -212,6 +226,20 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
     setIsConnecting(false);
     setError("");
     setConnectionHint("");
+
+    if (payload.roomCode.startsWith("HG-")) {
+      // Hangouts skip the waiting room logic
+      onEnterGame({
+        roomCode: payload.roomCode,
+        playerId: payload.player.id,
+        playerName: playerName.trim() || displayName || "Pilot",
+        players: payload.room.players,
+        isHost: payload.room.host === payload.player.id,
+        color: payload.player.color || "#8b1a1a",
+      });
+      return;
+    }
+
     setWaitingRoom({
       roomCode: payload.roomCode,
       players: payload.room.players,
@@ -453,6 +481,37 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
         throw new Error("Could not join any room.");
       }
       
+      startRoomSyncWatchdog();
+    } catch (connectError) {
+      clearRoomSyncTimer();
+      setError(getErrorMessage(connectError));
+      setConnectionHint("");
+      setIsConnecting(false);
+    }
+  };
+
+  const handleHangout = async () => {
+    const trimmedName = playerName.trim() || displayName || "Pilot";
+
+    setError("");
+    setIsConnecting(true);
+    setConnectionHint("Creating hangout...");
+    joinedRef.current = false;
+
+    try {
+      const socket = await runWithRetry(prepareSocket, 2);
+      setConnectionHint("Setting up free roam...");
+      const ack = await emitWithAck(
+        socket,
+        "create-hangout",
+        { playerName: trimmedName, avatarUrl },
+        20000
+      );
+
+      if (ack.ok === false) {
+        throw new Error("Could not create hangout session.");
+      }
+
       startRoomSyncWatchdog();
     } catch (connectError) {
       clearRoomSyncTimer();
@@ -709,6 +768,14 @@ export function Lobby({ onEnterGame, onSinglePlayer, initialRoomCode }: LobbyPro
                     JOIN LOBBY
                   </button>
                 </div>
+
+                <button
+                  onClick={handleHangout}
+                  disabled={isConnecting}
+                  className="w-full bg-[#2d5a3d] hover:bg-[#3a7050] text-white text-xs py-4 uppercase tracking-[0.2em] transition-all shadow-[6px_6px_0px_#000] cursor-pointer disabled:opacity-50 active:translate-y-1 active:shadow-none border border-[#4a8060]/30"
+                >
+                  🏙️ HANGOUT MODE
+                </button>
               </>
             )}
           </div>

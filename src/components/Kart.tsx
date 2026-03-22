@@ -60,6 +60,10 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
   const hudTimer = useRef(0);
   const isDrifting = useRef(false);
   const tiltAngle = useRef(0);
+  const lastSafePos = useRef(new THREE.Vector3(50, 1.5, 44));
+  const lastSafeYaw = useRef(0);
+  const safePosSaveTimer = useRef(0);
+  const respawnCooldown = useRef(0);
 
   // Wheel refs
   const wheelRefs = useRef<THREE.Mesh[]>([]);
@@ -73,6 +77,28 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
     const curVel = bodyRef.current.linvel();
     v.vel.set(curVel.x, 0, curVel.z);
     const speed = v.vel.length();
+
+    // ─── Fall recovery / respawn ───
+    respawnCooldown.current = Math.max(0, respawnCooldown.current - dt);
+    if (pos.y < -3 && respawnCooldown.current <= 0) {
+      // Kart fell off the track! Teleport back to last safe position
+      bodyRef.current.setTranslation(
+        { x: lastSafePos.current.x, y: lastSafePos.current.y + 1, z: lastSafePos.current.z },
+        true
+      );
+      bodyRef.current.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      bodyRef.current.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      yaw.current = lastSafeYaw.current;
+      respawnCooldown.current = 2; // Prevent rapid respawning
+    }
+
+    // Save safe position periodically when on the track
+    safePosSaveTimer.current += dt;
+    if (safePosSaveTimer.current > 0.5 && pos.y > -1 && pos.y < 5) {
+      safePosSaveTimer.current = 0;
+      lastSafePos.current.set(pos.x, pos.y, pos.z);
+      lastSafeYaw.current = yaw.current;
+    }
 
     // ─── Controls ───
     const canDrive = raceState === "racing";

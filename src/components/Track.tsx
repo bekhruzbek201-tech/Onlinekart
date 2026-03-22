@@ -24,12 +24,12 @@ export const CHECKPOINTS: [number, number, number][] = [
 export const FINISH_LINE: [number, number, number] = [50, 40, 15];
 
 /* ── Reusable wall segment ── */
-function Wall({ position, size, color }: { position: [number, number, number]; size: [number, number, number]; color: string }) {
+function Wall({ position, size, color, visible = true }: { position: [number, number, number]; size: [number, number, number]; color: string; visible?: boolean }) {
   return (
     <RigidBody type="fixed" position={position}>
-      <mesh castShadow receiveShadow>
+      <mesh castShadow={visible} receiveShadow={visible}>
         <boxGeometry args={size} />
-        <meshStandardMaterial color={color} roughness={0.92} />
+        <meshStandardMaterial color={color} roughness={0.92} transparent={!visible} opacity={visible ? 1 : 0} />
       </mesh>
     </RigidBody>
   );
@@ -44,7 +44,6 @@ function BoostPad({ position, rotationY }: { position: [number, number, number];
     if (glowRef.current) {
       (glowRef.current.material as THREE.MeshStandardMaterial).opacity = 0.35 + Math.sin(Date.now() * 0.006) * 0.2;
     }
-    // Animate arrows flowing forward
     arrowRefs.current.forEach((arrow, i) => {
       if (arrow) {
         const offset = ((Date.now() * 0.003 + i * 1.2) % 3) - 1.5;
@@ -64,7 +63,6 @@ function BoostPad({ position, rotationY }: { position: [number, number, number];
         <planeGeometry args={[4.5, 9]} />
         <meshStandardMaterial color="#ffd700" transparent opacity={0.35} emissive="#ffd700" emissiveIntensity={0.6} />
       </mesh>
-      {/* Flowing arrow indicators */}
       {[0, 1, 2].map((i) => (
         <mesh
           key={i}
@@ -103,28 +101,34 @@ function Lamp({ position }: { position: [number, number, number] }) {
 }
 
 /* ── Brutalist building ── */
-function Building({ position, size, color, windows = true }: { position: [number, number, number]; size: [number, number, number]; color: string; windows?: boolean }) {
+function Building({ position, size, color }: { position: [number, number, number]; size: [number, number, number]; color: string }) {
+  // Pre-calculate windows deterministically to avoid random flicker
+  const windowColors = useRef(
+    Array.from({ length: Math.floor(size[1] / 12) }, () =>
+      Array.from({ length: Math.floor(size[0] / 8) }, () => Math.random() > 0.7)
+    )
+  ).current;
+
   return (
     <group position={position}>
       <mesh castShadow receiveShadow>
         <boxGeometry args={size} />
         <meshStandardMaterial color={color} roughness={0.95} />
       </mesh>
-      {/* Optimized Window grid: Only show few windows to save performance */}
-      {windows && Array.from({ length: Math.floor(size[1] / 12) }, (_, row) =>
-        Array.from({ length: Math.floor(size[0] / 8) }, (_, col) => (
+      {windowColors.map((row, rowIdx) =>
+        row.map((lit, colIdx) => (
           <mesh
-            key={`${row}-${col}`}
+            key={`${rowIdx}-${colIdx}`}
             position={[
-              -size[0] / 2 + 3 + col * 8,
-              -size[1] / 2 + 6 + row * 12,
+              -size[0] / 2 + 3 + colIdx * 8,
+              -size[1] / 2 + 6 + rowIdx * 12,
               size[2] / 2 + 0.1,
             ]}
           >
             <planeGeometry args={[2.5, 4]} />
             <meshStandardMaterial
-              color={Math.random() > 0.7 ? "#ffeeaa" : "#1a1a1a"}
-              emissive={Math.random() > 0.7 ? "#ffeeaa" : "#000"}
+              color={lit ? "#ffeeaa" : "#1a1a1a"}
+              emissive={lit ? "#ffeeaa" : "#000"}
               emissiveIntensity={0.4}
             />
           </mesh>
@@ -134,10 +138,89 @@ function Building({ position, size, color, windows = true }: { position: [number
   );
 }
 
+/* ── Guard rail segment (aesthetic barrier) ── */
+function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: [number, number, number]; rotation?: [number, number, number]; length?: number }) {
+  return (
+    <RigidBody type="fixed" position={position} rotation={rotation}>
+      <group>
+        {/* Metal rail */}
+        <mesh castShadow position={[0, 0.6, 0]}>
+          <boxGeometry args={[length, 0.15, 0.3]} />
+          <meshStandardMaterial color="#888" metalness={0.6} roughness={0.4} />
+        </mesh>
+        <mesh castShadow position={[0, 0.2, 0]}>
+          <boxGeometry args={[length, 0.1, 0.2]} />
+          <meshStandardMaterial color="#666" metalness={0.5} roughness={0.5} />
+        </mesh>
+        {/* Posts */}
+        {Array.from({ length: Math.floor(length / 4) + 1 }, (_, i) => (
+          <mesh key={i} castShadow position={[-length / 2 + i * 4, 0.4, 0]}>
+            <boxGeometry args={[0.15, 0.8, 0.15]} />
+            <meshStandardMaterial color="#c41e1e" />
+          </mesh>
+        ))}
+        {/* Collision box (invisible, full height) */}
+        <mesh visible={false}>
+          <boxGeometry args={[length, 3, 0.5]} />
+        </mesh>
+      </group>
+    </RigidBody>
+  );
+}
+
+/* ── Tire barrier (corner protection) ── */
+function TireBarrier({ position, rotation = [0, 0, 0], count = 5 }: { position: [number, number, number]; rotation?: [number, number, number]; count?: number }) {
+  return (
+    <RigidBody type="fixed" position={position} rotation={rotation}>
+      <group>
+        {Array.from({ length: count }, (_, i) => (
+          <group key={i} position={[i * 1.2 - (count * 0.6), 0.4, 0]}>
+            <mesh castShadow>
+              <cylinderGeometry args={[0.45, 0.45, 0.8, 8]} />
+              <meshStandardMaterial color="#222" roughness={0.95} />
+            </mesh>
+            {/* Red stripe on tire */}
+            <mesh position={[0, 0, 0]}>
+              <cylinderGeometry args={[0.46, 0.46, 0.2, 8]} />
+              <meshStandardMaterial color="#c41e1e" />
+            </mesh>
+          </group>
+        ))}
+        {/* Collision box */}
+        <mesh visible={false}>
+          <boxGeometry args={[count * 1.2, 2, 1.2]} />
+        </mesh>
+      </group>
+    </RigidBody>
+  );
+}
+
+/* ── Traffic Cone ── */
+function TrafficCone({ position }: { position: [number, number, number] }) {
+  return (
+    <RigidBody type="fixed" position={position}>
+      <group>
+        <mesh castShadow position={[0, 0.4, 0]}>
+          <coneGeometry args={[0.25, 0.8, 8]} />
+          <meshStandardMaterial color="#ff6600" />
+        </mesh>
+        <mesh position={[0, 0.35, 0]}>
+          <cylinderGeometry args={[0.27, 0.27, 0.08, 8]} />
+          <meshStandardMaterial color="#fff" emissive="#fff" emissiveIntensity={0.3} />
+        </mesh>
+        <mesh receiveShadow position={[0, 0.02, 0]}>
+          <boxGeometry args={[0.5, 0.04, 0.5]} />
+          <meshStandardMaterial color="#333" />
+        </mesh>
+      </group>
+    </RigidBody>
+  );
+}
+
 export const Track = memo(function Track() {
   const tw = 20; // track width
   const sl = 120; // straight length
-  const wh = 3.5; // wall height
+  const wh = 4.5; // wall height (taller to prevent jumping over)
   const wt = 2;  // wall thickness
 
   return (
@@ -163,15 +246,35 @@ export const Track = memo(function Track() {
         </mesh>
       ))}
 
+      {/* ══════════ TRACK SHOULDER ASPHALT (fills gaps at corners) ══════════ */}
+      {/* Top-right corner fill */}
+      <mesh receiveShadow position={[50, 0.008, -60]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[tw + 4, tw + 4]} />
+        <meshStandardMaterial color="#2a2a2a" roughness={0.95} />
+      </mesh>
+      {/* Top-left corner fill */}
+      <mesh receiveShadow position={[-50, 0.008, -60]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[tw + 4, tw + 4]} />
+        <meshStandardMaterial color="#2a2a2a" roughness={0.95} />
+      </mesh>
+      {/* Bottom-right corner fill */}
+      <mesh receiveShadow position={[50, 0.008, 60]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[tw + 4, tw + 4]} />
+        <meshStandardMaterial color="#2a2a2a" roughness={0.95} />
+      </mesh>
+      {/* Bottom-left corner fill */}
+      <mesh receiveShadow position={[-50, 0.008, 60]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[tw + 4, tw + 4]} />
+        <meshStandardMaterial color="#2a2a2a" roughness={0.95} />
+      </mesh>
+
       {/* ══════════ CENTER LINE (dashed) ══════════ */}
-      {/* Right straight center line */}
       {Array.from({ length: 20 }, (_, i) => (
         <mesh key={`cl-r-${i}`} position={[50, 0.015, -55 + i * 5.5]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 2.5]} />
           <meshStandardMaterial color="#666" />
         </mesh>
       ))}
-      {/* Left straight center line */}
       {Array.from({ length: 20 }, (_, i) => (
         <mesh key={`cl-l-${i}`} position={[-50, 0.015, -55 + i * 5.5]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 2.5]} />
@@ -201,15 +304,56 @@ export const Track = memo(function Track() {
         </mesh>
       ))}
 
-      {/* ══════════ WALLS ══════════ */}
-      <Wall position={[60.5, wh / 2, 0]} size={[wt, wh, sl]} color="#c41e1e" />
-      <Wall position={[39.5, wh / 2, 0]} size={[wt, wh, sl]} color="#555" />
-      <Wall position={[-60.5, wh / 2, 0]} size={[wt, wh, sl]} color="#c41e1e" />
-      <Wall position={[-39.5, wh / 2, 0]} size={[wt, wh, sl]} color="#555" />
-      <Wall position={[0, wh / 2, -70.5]} size={[123, wh, wt]} color="#c41e1e" />
-      <Wall position={[0, wh / 2, -49.5]} size={[79, wh, wt]} color="#555" />
-      <Wall position={[0, wh / 2, 70.5]} size={[123, wh, wt]} color="#c41e1e" />
-      <Wall position={[0, wh / 2, 49.5]} size={[79, wh, wt]} color="#555" />
+      {/* ══════════ OUTER WALLS (fully sealed perimeter) ══════════ */}
+      <Wall position={[60.5, wh / 2, 0]} size={[wt, wh, sl + 22]} color="#c41e1e" />
+      <Wall position={[-60.5, wh / 2, 0]} size={[wt, wh, sl + 22]} color="#c41e1e" />
+      <Wall position={[0, wh / 2, -71.5]} size={[123, wh, wt]} color="#c41e1e" />
+      <Wall position={[0, wh / 2, 71.5]} size={[123, wh, wt]} color="#c41e1e" />
+
+      {/* ══════════ INNER WALLS (fully sealed - NO GAPS) ══════════ */}
+      {/* Right inner wall - broken into segments connecting to corners */}
+      <Wall position={[39.5, wh / 2, -25]} size={[wt, wh, 50]} color="#555" />
+      <Wall position={[39.5, wh / 2, 25]} size={[wt, wh, 50]} color="#555" />
+      {/* Left inner wall */}
+      <Wall position={[-39.5, wh / 2, -25]} size={[wt, wh, 50]} color="#555" />
+      <Wall position={[-39.5, wh / 2, 25]} size={[wt, wh, 50]} color="#555" />
+      {/* Top inner wall */}
+      <Wall position={[0, wh / 2, -49.5]} size={[81, wh, wt]} color="#555" />
+      {/* Bottom inner wall */}
+      <Wall position={[0, wh / 2, 49.5]} size={[81, wh, wt]} color="#555" />
+
+      {/* ══════════ CORNER BARRIERS (closes all gaps!) ══════════ */}
+      {/* Top-right corner - tire barriers */}
+      <TireBarrier position={[45, 0, -52]} rotation={[0, Math.PI / 4, 0]} count={6} />
+      <TireBarrier position={[55, 0, -52]} rotation={[0, -Math.PI / 4, 0]} count={6} />
+      {/* Top-left corner */}
+      <TireBarrier position={[-45, 0, -52]} rotation={[0, -Math.PI / 4, 0]} count={6} />
+      <TireBarrier position={[-55, 0, -52]} rotation={[0, Math.PI / 4, 0]} count={6} />
+      {/* Bottom-right corner */}
+      <TireBarrier position={[45, 0, 52]} rotation={[0, -Math.PI / 4, 0]} count={6} />
+      <TireBarrier position={[55, 0, 52]} rotation={[0, Math.PI / 4, 0]} count={6} />
+      {/* Bottom-left corner */}
+      <TireBarrier position={[-45, 0, 52]} rotation={[0, Math.PI / 4, 0]} count={6} />
+      <TireBarrier position={[-55, 0, 52]} rotation={[0, -Math.PI / 4, 0]} count={6} />
+
+      {/* ══════════ GUARD RAILS along straights ══════════ */}
+      <GuardRail position={[60, 0, -35]} length={15} />
+      <GuardRail position={[60, 0, 35]} length={15} />
+      <GuardRail position={[-60, 0, -35]} length={15} />
+      <GuardRail position={[-60, 0, 35]} length={15} />
+
+      {/* ══════════ TRAFFIC CONES at key points ══════════ */}
+      <TrafficCone position={[42, 0, -48]} />
+      <TrafficCone position={[58, 0, -48]} />
+      <TrafficCone position={[42, 0, 48]} />
+      <TrafficCone position={[58, 0, 48]} />
+      <TrafficCone position={[-42, 0, -48]} />
+      <TrafficCone position={[-58, 0, -48]} />
+      <TrafficCone position={[-42, 0, 48]} />
+      <TrafficCone position={[-58, 0, 48]} />
+
+      {/* ══════════ UNDERGROUND SAFETY NET (kart respawn if falls) ══════════ */}
+      <Wall position={[0, -8, 0]} size={[400, 1, 400]} color="#000" visible={false} />
 
       {/* ══════════ BOOST PADS ══════════ */}
       {BOOST_PAD_POSITIONS.map((p, i) => (
@@ -219,33 +363,27 @@ export const Track = memo(function Track() {
       {/* ══════════ CENTRAL MONUMENT ══════════ */}
       <RigidBody type="fixed" position={[0, 0, 0]}>
         <group>
-          {/* Massive pedestal */}
           <mesh castShadow receiveShadow position={[0, 2.5, 0]}>
             <boxGeometry args={[16, 5, 16]} />
             <meshStandardMaterial color="#444" roughness={0.85} />
           </mesh>
-          {/* Steps */}
           <mesh receiveShadow position={[0, 0.15, 0]}>
             <boxGeometry args={[20, 0.3, 20]} />
             <meshStandardMaterial color="#3a3a3a" />
           </mesh>
-          {/* Obelisk */}
           <mesh castShadow receiveShadow position={[0, 14, 0]}>
             <boxGeometry args={[5, 18, 5]} />
             <meshStandardMaterial color="#3a3a3a" roughness={0.9} />
           </mesh>
-          {/* Obelisk taper */}
           <mesh castShadow position={[0, 24.5, 0]}>
             <boxGeometry args={[3.5, 3, 3.5]} />
             <meshStandardMaterial color="#333" />
           </mesh>
-          {/* Red star */}
           <mesh castShadow position={[0, 27, 0]}>
             <boxGeometry args={[2.5, 2.5, 2.5]} />
             <meshStandardMaterial color="#c41e1e" emissive="#ff2222" emissiveIntensity={0.6} />
           </mesh>
           <pointLight position={[0, 27, 0]} color="#ff3333" intensity={3} distance={40} />
-          {/* Decorative red band */}
           <mesh position={[0, 7, 0]}>
             <boxGeometry args={[5.2, 1, 5.2]} />
             <meshStandardMaterial color="#c41e1e" />
@@ -268,7 +406,6 @@ export const Track = memo(function Track() {
             <boxGeometry args={[25, 2.5, 3.5]} />
             <meshStandardMaterial color="#c41e1e" emissive="#c41e1e" emissiveIntensity={0.15} />
           </mesh>
-          {/* Arch lights */}
           <pointLight position={[-5, 14, 2]} color="#ff6666" intensity={1} distance={15} />
           <pointLight position={[5, 14, 2]} color="#ff6666" intensity={1} distance={15} />
         </group>
