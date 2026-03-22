@@ -101,12 +101,8 @@ function Lamp({ position }: { position: [number, number, number] }) {
 
 /* ── Brutalist building ── */
 function Building({ position, size, color }: { position: [number, number, number]; size: [number, number, number]; color: string }) {
-  // Pre-calculate windows deterministically to avoid random flicker
-  const windowColors = useRef(
-    Array.from({ length: Math.floor(size[1] / 12) }, () =>
-      Array.from({ length: Math.floor(size[0] / 8) }, () => Math.random() > 0.7)
-    )
-  ).current;
+  // Pre-calculate whether building has lit bands deterministically
+  const hasGlow = useRef(Math.random() > 0.5).current;
 
   return (
     <group position={position}>
@@ -114,24 +110,13 @@ function Building({ position, size, color }: { position: [number, number, number
         <boxGeometry args={size} />
         <meshStandardMaterial color={color} roughness={0.95} />
       </mesh>
-      {windowColors.map((row, rowIdx) =>
-        row.map((lit, colIdx) => (
-          <mesh
-            key={`${rowIdx}-${colIdx}`}
-            position={[
-              -size[0] / 2 + 3 + colIdx * 8,
-              -size[1] / 2 + 6 + rowIdx * 12,
-              size[2] / 2 + 0.1,
-            ]}
-          >
-            <planeGeometry args={[2.5, 4]} />
-            <meshStandardMaterial
-              color={lit ? "#ffeeaa" : "#1a1a1a"}
-              emissive={lit ? "#ffeeaa" : "#000"}
-              emissiveIntensity={0.4}
-            />
-          </mesh>
-        ))
+      
+      {/* Horizontal glowing band replaces heavy individual window draws */}
+      {hasGlow && (
+        <mesh position={[0, size[1] / 6, 0]}>
+          <boxGeometry args={[size[0] + 0.2, 2, size[2] + 0.2]} />
+          <meshStandardMaterial color="#ffeeaa" emissive="#ffeeaa" emissiveIntensity={0.6} />
+        </mesh>
       )}
     </group>
   );

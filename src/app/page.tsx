@@ -436,15 +436,15 @@ export default function Home() {
           <fog attach="fog" args={["#1a1b1e", 70, 250]} />
 
           {/* Lighting rig: industrial harsh + atmospheric */}
-          <ambientLight intensity={0.3} color="#b8b0a0" />
+          <ambientLight intensity={gameMode === "hangout" ? 1.4 : 0.3} color="#ffffff" />
 
-          {/* Main directional (sun) */}
+          {/* Main directional (sun) - shadows disabled in hangout for FPS */}
           <directionalLight
-            castShadow
+            castShadow={gameMode === "race"}
             position={[60, 90, 40]}
-            intensity={1.6}
-            color="#ffeedd"
-            shadow-mapSize={isLowPowerDevice ? [512, 512] : [1024, 1024]}
+            intensity={gameMode === "hangout" ? 1.5 : 1.6}
+            color="#ffffff"
+            shadow-mapSize={[512, 512]}
             shadow-camera-left={-120}
             shadow-camera-right={120}
             shadow-camera-top={120}
@@ -456,11 +456,11 @@ export default function Home() {
 
           {/* Fill light (cold) from opposite side */}
           {!isLowPowerDevice && (
-            <directionalLight position={[-40, 30, -20]} intensity={0.4} color="#8899bb" />
+            <directionalLight position={[-40, 30, -20]} intensity={gameMode === "hangout" ? 0.3 : 0.4} color="#8899bb" />
           )}
 
-          {/* Red atmosphere from monument */}
-          {!isLowPowerDevice && (
+          {/* Red atmosphere from monument - only in race track */}
+          {!isLowPowerDevice && gameMode === "race" && (
             <pointLight position={[0, 28, 0]} intensity={2} color="#ff3333" distance={50} />
           )}
 
