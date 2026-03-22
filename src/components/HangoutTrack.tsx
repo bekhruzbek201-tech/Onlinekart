@@ -13,7 +13,7 @@ function Bridge({ position, rotation = [0, 0, 0], length = 40, width = 12 }: {
   width?: number;
 }) {
   return (
-    <RigidBody type="fixed" position={position} rotation={rotation} colliders="cuboid">
+    <RigidBody type="fixed" position={position} rotation={rotation} colliders="cuboid" friction={0} restitution={0.1}>
       <group>
         <mesh>
           <boxGeometry args={[length, 0.5, width]} />
@@ -44,7 +44,7 @@ function CityBuilding({ position, size, color, lit = false }: {
   lit?: boolean;
 }) {
   return (
-    <RigidBody type="fixed" position={position} colliders="cuboid">
+    <RigidBody type="fixed" position={position} colliders="cuboid" friction={0} restitution={0.1}>
       <group>
         <mesh>
           <boxGeometry args={size} />
@@ -75,7 +75,7 @@ function Fountain({ position }: { position: [number, number, number] }) {
   });
 
   return (
-    <RigidBody type="fixed" position={position} colliders="hull">
+    <RigidBody type="fixed" position={position} colliders="hull" friction={0} restitution={0.1}>
       <group>
         <mesh>
           <cylinderGeometry args={[6, 7, 1.5, 8]} />

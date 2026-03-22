@@ -1,6 +1,6 @@
 "use client";
 
-import { RigidBody } from "@react-three/rapier";
+import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import { memo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -26,7 +26,7 @@ export const FINISH_LINE: [number, number, number] = [50, 40, 15];
 /* ── Reusable wall segment ── */
 function Wall({ position, size, color, visible = true }: { position: [number, number, number]; size: [number, number, number]; color: string; visible?: boolean }) {
   return (
-    <RigidBody type="fixed" position={position}>
+    <RigidBody type="fixed" position={position} friction={0} restitution={0.1}>
       <mesh castShadow={visible} receiveShadow={visible}>
         <boxGeometry args={size} />
         <meshStandardMaterial color={color} roughness={0.92} transparent={!visible} opacity={visible ? 1 : 0} />
@@ -125,7 +125,8 @@ function Building({ position, size, color }: { position: [number, number, number
 /* ── Guard rail segment (aesthetic barrier) ── */
 function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: [number, number, number]; rotation?: [number, number, number]; length?: number }) {
   return (
-    <RigidBody type="fixed" position={position} rotation={rotation}>
+    <RigidBody type="fixed" position={position} rotation={rotation} colliders={false} friction={0} restitution={0.1}>
+      <CuboidCollider args={[length / 2, 1.5, 0.25]} />
       <group>
         {/* Metal rail */}
         <mesh castShadow position={[0, 0.6, 0]}>
@@ -143,10 +144,6 @@ function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: 
             <meshStandardMaterial color="#c41e1e" />
           </mesh>
         ))}
-        {/* Collision box (invisible, full height) */}
-        <mesh visible={false}>
-          <boxGeometry args={[length, 3, 0.5]} />
-        </mesh>
       </group>
     </RigidBody>
   );
@@ -155,10 +152,11 @@ function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: 
 /* ── Tire barrier (corner protection) ── */
 function TireBarrier({ position, rotation = [0, 0, 0], count = 5 }: { position: [number, number, number]; rotation?: [number, number, number]; count?: number }) {
   return (
-    <RigidBody type="fixed" position={position} rotation={rotation}>
+    <RigidBody type="fixed" position={position} rotation={rotation} colliders={false} friction={0} restitution={0.1}>
+      <CuboidCollider args={[(count * 1.2) / 2, 1, 0.6]} />
       <group>
         {Array.from({ length: count }, (_, i) => (
-          <group key={i} position={[i * 1.2 - (count * 0.6), 0.4, 0]}>
+          <group key={i} position={[i * 1.2 - (count * 0.6) + 0.6, 0.4, 0]}>
             <mesh castShadow>
               <cylinderGeometry args={[0.45, 0.45, 0.8, 8]} />
               <meshStandardMaterial color="#222" roughness={0.95} />
@@ -170,10 +168,6 @@ function TireBarrier({ position, rotation = [0, 0, 0], count = 5 }: { position: 
             </mesh>
           </group>
         ))}
-        {/* Collision box */}
-        <mesh visible={false}>
-          <boxGeometry args={[count * 1.2, 2, 1.2]} />
-        </mesh>
       </group>
     </RigidBody>
   );
@@ -182,7 +176,7 @@ function TireBarrier({ position, rotation = [0, 0, 0], count = 5 }: { position: 
 /* ── Traffic Cone ── */
 function TrafficCone({ position }: { position: [number, number, number] }) {
   return (
-    <RigidBody type="fixed" position={position}>
+    <RigidBody type="fixed" position={position} friction={0} restitution={0.1}>
       <group>
         <mesh castShadow position={[0, 0.4, 0]}>
           <coneGeometry args={[0.25, 0.8, 8]} />
@@ -345,7 +339,7 @@ export const Track = memo(function Track() {
       ))}
 
       {/* ══════════ CENTRAL MONUMENT ══════════ */}
-      <RigidBody type="fixed" position={[0, 0, 0]}>
+      <RigidBody type="fixed" position={[0, 0, 0]} friction={0} restitution={0.1}>
         <group>
           <mesh castShadow receiveShadow position={[0, 2.5, 0]}>
             <boxGeometry args={[16, 5, 16]} />
@@ -376,7 +370,7 @@ export const Track = memo(function Track() {
       </RigidBody>
 
       {/* ══════════ START ARCHWAY ══════════ */}
-      <RigidBody type="fixed">
+      <RigidBody type="fixed" friction={0} restitution={0.1}>
         <group position={[50, 0, 40]}>
           <mesh castShadow position={[-11, 7, 0]}>
             <boxGeometry args={[2.5, 14, 2.5]} />
