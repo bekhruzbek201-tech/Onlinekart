@@ -383,7 +383,7 @@ app.prepare().then(() => {
   });
 
   const PORT = process.env.PORT || 3000;
-  server.listen(PORT, () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`[SERVER] Ready on port ${PORT}`);
     console.log(`[SERVER] CORS origins: ${Array.isArray(allowedOrigins) ? allowedOrigins.join(",") : "*"}`);
   });
