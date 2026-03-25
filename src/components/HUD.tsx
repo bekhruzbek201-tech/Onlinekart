@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 interface HUDProps {
   speed: number;
@@ -32,6 +32,18 @@ export const HUD = memo(function HUD({
 }: HUDProps) {
   const speedKmh = Math.round((speed / 42) * 220);
   const speedPercent = Math.min((speed / maxSpeed) * 100, 100);
+  const prevLapRef = useRef(lap);
+  const [lapFlash, setLapFlash] = useState(false);
+
+  useEffect(() => {
+    if (lap > prevLapRef.current) {
+      setLapFlash(true);
+      const t = window.setTimeout(() => setLapFlash(false), 520);
+      prevLapRef.current = lap;
+      return () => window.clearTimeout(t);
+    }
+    prevLapRef.current = lap;
+  }, [lap]);
 
   return (
     <>
@@ -59,7 +71,11 @@ export const HUD = memo(function HUD({
 
       {/* ─── TOP RIGHT: Lap + Timer ─── */}
       <div className="absolute top-4 right-4 z-30 select-none pointer-events-none animate-slideDown">
-        <div className="bg-black/85 border-2 border-[#c41e1e] px-5 py-3.5 shadow-[5px_5px_0px_#000]">
+        <div
+          className={`bg-black/85 border-2 border-[#c41e1e] px-5 py-3.5 shadow-[5px_5px_0px_#000] ${
+            lapFlash ? "animate-lapFlash" : ""
+          }`}
+        >
           <div className="text-right mb-3">
             <div className="text-[7px] text-[#666] uppercase tracking-[0.3em] mb-1">Круг</div>
             <div className="text-xl sm:text-3xl text-white leading-none tabular-nums tracking-wider">

@@ -40,7 +40,8 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
   // ─── Finely tuned arcade physics ─────────────
   const MAX_SPEED = 45;
   const ACCEL = 72;
-  const REVERSE = 28;
+  // Slightly stronger reverse so the kart can back out of wall contact.
+  const REVERSE = 34;
   const TURN_SPEED = 3.2;
   const DRIFT_TURN = 5.2;
   const GRIP = 0.82;         // High grip = tight cornering
@@ -110,12 +111,15 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
 
     // ─── Steering (speed-dependent) ───
     const speedFactor = Math.min(speed / 5, 1);
+    // Keep steering responsive when nearly stopped (otherwise the kart can
+    // "wedge" against a long barrier where reversing can't rotate it away).
+    const steeringFactor = 0.25 + speedFactor * 0.75;
     const turnRate = isDrifting.current ? DRIFT_TURN : TURN_SPEED;
     let turnInput = 0;
     if (left) turnInput = 1;
     if (right) turnInput = -1;
 
-    yaw.current += turnInput * turnRate * dt * speedFactor;
+    yaw.current += turnInput * turnRate * dt * steeringFactor;
 
     v.euler.set(0, yaw.current, 0);
     v.quat.setFromEuler(v.euler);
@@ -145,14 +149,24 @@ export function Kart({ onSpeedChange, onLapChange, onPositionUpdate, raceState, 
       engineForce = ACCEL * (1 - ratio * 0.4);
     }
     if (backward) {
-      engineForce = forwardComponent > 1 ? -ACCEL * 0.8 : -REVERSE; // Brake hard, reverse slow
+      // Brake hard when moving forward into an obstacle; otherwise push to reverse.
+      if (forwardComponent > 1) {
+        engineForce = -ACCEL * 0.8;
+      } else {
+        // Extra reverse kick when nearly stopped helps break contact.
+        const stuckReverseMultiplier = speed < 2 ? 1.25 : 1;
+        engineForce = -REVERSE * stuckReverseMultiplier;
+      }
     }
     if (isBoosting) engineForce += BOOST_FORCE;
 
     // ─── Lateral grip (the magic of drifting) ───
     const lateralComponent = v.vel.dot(v.right);
     const grip = isDrifting.current ? DRIFT_GRIP : GRIP;
-    const lateralCancel = -lateralComponent * (1 - grip) * 55 * dt;
+    // When nearly stopped, reduce sideways "locking" so the kart can pivot
+    // away from a wall instead of sliding in place.
+    const lowSpeedLateralScale = speed < 1.5 ? 0.6 : 1;
+    const lateralCancel = -lateralComponent * (1 - grip) * 55 * dt * lowSpeedLateralScale;
 
     // ─── Assemble velocity ───
     const forceX = v.forward.x * engineForce + v.right.x * lateralCancel;

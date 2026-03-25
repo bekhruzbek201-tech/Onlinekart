@@ -24,13 +24,41 @@ export const CHECKPOINTS: [number, number, number][] = [
 export const FINISH_LINE: [number, number, number] = [50, 40, 15];
 
 /* ── Reusable wall segment ── */
-function Wall({ position, size, color, visible = true }: { position: [number, number, number]; size: [number, number, number]; color: string; visible?: boolean }) {
+function Wall({
+  position,
+  size,
+  color,
+  visible = true,
+  stripeColor,
+}: {
+  position: [number, number, number];
+  size: [number, number, number];
+  color: string;
+  visible?: boolean;
+  stripeColor?: string;
+}) {
+  const stripeThickness = Math.max(0.12, size[1] * 0.1);
+
   return (
     <RigidBody type="fixed" position={position} friction={0} restitution={0.1}>
       <mesh castShadow={visible} receiveShadow={visible}>
         <boxGeometry args={size} />
         <meshStandardMaterial color={color} roughness={0.92} transparent={!visible} opacity={visible ? 1 : 0} />
       </mesh>
+      {stripeColor && (
+        <mesh castShadow={visible} receiveShadow={visible} position={[0, size[1] / 2 - stripeThickness / 2, 0]}>
+          <boxGeometry args={[size[0], stripeThickness, size[2]]} />
+          <meshStandardMaterial
+            color={stripeColor}
+            emissive={stripeColor}
+            emissiveIntensity={0.45}
+            roughness={0.65}
+            metalness={0.25}
+            transparent={!visible}
+            opacity={visible ? 0.95 : 0}
+          />
+        </mesh>
+      )}
     </RigidBody>
   );
 }
@@ -101,8 +129,8 @@ function Lamp({ position }: { position: [number, number, number] }) {
 
 /* ── Brutalist building ── */
 function Building({ position, size, color }: { position: [number, number, number]; size: [number, number, number]; color: string }) {
-  // Pre-calculate whether building has lit bands deterministically
-  const hasGlow = useRef(Math.random() > 0.5).current;
+  // Deterministic glow choice (eslint blocks Math.random during render).
+  const hasGlow = (Math.abs(Math.round(position[0] * 13 + position[2] * 7 + size[0] * 0.5)) % 2) === 0;
 
   return (
     <group position={position}>
@@ -124,6 +152,14 @@ function Building({ position, size, color }: { position: [number, number, number
 
 /* ── Guard rail segment (aesthetic barrier) ── */
 function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: [number, number, number]; rotation?: [number, number, number]; length?: number }) {
+  const railPalette = ["#00d1ff", "#d4a017", "#c41e1e", "#7c4dff", "#2ecc71", "#ff7a00"];
+  const postPalette = ["#ff2d55", "#ffd700", "#00d1ff", "#c41e1e"];
+  const seed = Math.abs(Math.round(position[0] * 0.3 + position[2] * 0.7 + length)) % railPalette.length;
+  const railColor = railPalette[seed];
+  const stripeColor = railPalette[(seed + 2) % railPalette.length];
+  const postColorA = postPalette[seed % postPalette.length];
+  const postColorB = postPalette[(seed + 1) % postPalette.length];
+
   return (
     <RigidBody type="fixed" position={position} rotation={rotation} colliders={false} friction={0} restitution={0.1}>
       <CuboidCollider args={[length / 2, 1.5, 0.25]} />
@@ -131,17 +167,30 @@ function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: 
         {/* Metal rail */}
         <mesh castShadow position={[0, 0.6, 0]}>
           <boxGeometry args={[length, 0.15, 0.3]} />
-          <meshStandardMaterial color="#888" metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial color={railColor} emissive={railColor} emissiveIntensity={0.25} metalness={0.65} roughness={0.35} />
         </mesh>
         <mesh castShadow position={[0, 0.2, 0]}>
           <boxGeometry args={[length, 0.1, 0.2]} />
-          <meshStandardMaterial color="#666" metalness={0.5} roughness={0.5} />
+          <meshStandardMaterial color={stripeColor} emissive={stripeColor} emissiveIntensity={0.18} metalness={0.45} roughness={0.55} />
+        </mesh>
+        {/* Neon stripe */}
+        <mesh castShadow position={[0, 0.68, 0]}>
+          <boxGeometry args={[length, 0.06, 0.26]} />
+          <meshStandardMaterial
+            color={stripeColor}
+            emissive={stripeColor}
+            emissiveIntensity={0.6}
+            roughness={0.35}
+            metalness={0.2}
+            transparent
+            opacity={0.9}
+          />
         </mesh>
         {/* Posts */}
         {Array.from({ length: Math.floor(length / 4) + 1 }, (_, i) => (
           <mesh key={i} castShadow position={[-length / 2 + i * 4, 0.4, 0]}>
             <boxGeometry args={[0.15, 0.8, 0.15]} />
-            <meshStandardMaterial color="#c41e1e" />
+            <meshStandardMaterial color={i % 2 === 0 ? postColorA : postColorB} emissive={(i % 2 === 0 ? postColorA : postColorB)} emissiveIntensity={0.15} />
           </mesh>
         ))}
       </group>
@@ -151,6 +200,9 @@ function GuardRail({ position, rotation = [0, 0, 0], length = 20 }: { position: 
 
 /* ── Tire barrier (corner protection) ── */
 function TireBarrier({ position, rotation = [0, 0, 0], count = 5 }: { position: [number, number, number]; rotation?: [number, number, number]; count?: number }) {
+  const tirePalette = ["#2ecc71", "#00d1ff", "#d4a017", "#ff2d55", "#7c4dff", "#ff7a00"];
+  const stripePalette = ["#c41e1e", "#d4a017", "#00d1ff", "#ff2d55"];
+
   return (
     <RigidBody type="fixed" position={position} rotation={rotation} colliders={false} friction={0} restitution={0.1}>
       <CuboidCollider args={[(count * 1.2) / 2, 1, 0.6]} />
@@ -159,12 +211,26 @@ function TireBarrier({ position, rotation = [0, 0, 0], count = 5 }: { position: 
           <group key={i} position={[i * 1.2 - (count * 0.6) + 0.6, 0.4, 0]}>
             <mesh castShadow>
               <cylinderGeometry args={[0.45, 0.45, 0.8, 8]} />
-              <meshStandardMaterial color="#222" roughness={0.95} />
+              {(() => {
+                const tireColor = tirePalette[i % tirePalette.length];
+                return <meshStandardMaterial color={tireColor} roughness={0.9} metalness={0.1} emissive={tireColor} emissiveIntensity={0.08} />;
+              })()}
             </mesh>
             {/* Red stripe on tire */}
             <mesh position={[0, 0, 0]}>
               <cylinderGeometry args={[0.46, 0.46, 0.2, 8]} />
-              <meshStandardMaterial color="#c41e1e" />
+              {(() => {
+                const stripeColor = stripePalette[(i + 1) % stripePalette.length];
+                return (
+                  <meshStandardMaterial
+                    color={stripeColor}
+                    emissive={stripeColor}
+                    emissiveIntensity={0.35}
+                    roughness={0.35}
+                    metalness={0.25}
+                  />
+                );
+              })()}
             </mesh>
           </group>
         ))}
@@ -283,22 +349,22 @@ export const Track = memo(function Track() {
       ))}
 
       {/* ══════════ OUTER WALLS (fully sealed perimeter) ══════════ */}
-      <Wall position={[60.5, wh / 2, 0]} size={[wt, wh, sl + 22]} color="#c41e1e" />
-      <Wall position={[-60.5, wh / 2, 0]} size={[wt, wh, sl + 22]} color="#c41e1e" />
-      <Wall position={[0, wh / 2, -71.5]} size={[123, wh, wt]} color="#c41e1e" />
-      <Wall position={[0, wh / 2, 71.5]} size={[123, wh, wt]} color="#c41e1e" />
+      <Wall position={[60.5, wh / 2, 0]} size={[wt, wh, sl + 22]} color="#c41e1e" stripeColor="#d4a017" />
+      <Wall position={[-60.5, wh / 2, 0]} size={[wt, wh, sl + 22]} color="#c41e1e" stripeColor="#00d1ff" />
+      <Wall position={[0, wh / 2, -71.5]} size={[123, wh, wt]} color="#c41e1e" stripeColor="#ff2d55" />
+      <Wall position={[0, wh / 2, 71.5]} size={[123, wh, wt]} color="#c41e1e" stripeColor="#d4a017" />
 
       {/* ══════════ INNER WALLS (fully sealed - NO GAPS) ══════════ */}
       {/* Right inner wall - broken into segments connecting to corners */}
-      <Wall position={[39.5, wh / 2, -25]} size={[wt, wh, 50]} color="#555" />
-      <Wall position={[39.5, wh / 2, 25]} size={[wt, wh, 50]} color="#555" />
+      <Wall position={[39.5, wh / 2, -25]} size={[wt, wh, 50]} color="#00d1ff" stripeColor="#ff2d55" />
+      <Wall position={[39.5, wh / 2, 25]} size={[wt, wh, 50]} color="#7c4dff" stripeColor="#d4a017" />
       {/* Left inner wall */}
-      <Wall position={[-39.5, wh / 2, -25]} size={[wt, wh, 50]} color="#555" />
-      <Wall position={[-39.5, wh / 2, 25]} size={[wt, wh, 50]} color="#555" />
+      <Wall position={[-39.5, wh / 2, -25]} size={[wt, wh, 50]} color="#2ecc71" stripeColor="#00d1ff" />
+      <Wall position={[-39.5, wh / 2, 25]} size={[wt, wh, 50]} color="#ff7a00" stripeColor="#ff2d55" />
       {/* Top inner wall */}
-      <Wall position={[0, wh / 2, -49.5]} size={[81, wh, wt]} color="#555" />
+      <Wall position={[0, wh / 2, -49.5]} size={[81, wh, wt]} color="#d4a017" stripeColor="#00d1ff" />
       {/* Bottom inner wall */}
-      <Wall position={[0, wh / 2, 49.5]} size={[81, wh, wt]} color="#555" />
+      <Wall position={[0, wh / 2, 49.5]} size={[81, wh, wt]} color="#00d1ff" stripeColor="#c41e1e" />
 
       {/* ══════════ CORNER BARRIERS (closes all gaps!) ══════════ */}
       {/* Top-right corner - tire barriers */}
